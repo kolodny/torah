@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "hebrew-transliteration": "^2.5.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "tsx": "^3.13.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.15",
