@@ -40,23 +40,10 @@
     "TSERE": "\u026A",
     "HIRIQ": "i",
     "HOLAM": "o",
-    "QUBUTS": "u",
-    "DAGESH": "\u02D0"
+    "QUBUTS": "u"
   },
 
   "vowels": {
-    "\u05b4": "chirik",
-    "\u05c1": "shin",
-    "\u05b2": "patach",
-    "\u05b7": "patach",
-    "\u05bc": "dagesh",
-    "\u05b8": "kamatz",
-    "\u05ba": "kamatz",
-    "\u05b0": "shva",
-    "\u05b6": "segol",
-    "\u05b9": "cholam",
-    "\u05bb": "shooruk",
-
     "\u0591": "HEBREW_ACCENT_ETNAHTA",
     "\u0592": "HEBREW_ACCENT_SEGOL",
     "\u0593": "HEBREW_ACCENT_SHALSHELET",
@@ -96,6 +83,8 @@
     "\u05B6": "HEBREW_POINT_SEGOL",
     "\u05B7": "HEBREW_POINT_PATAH",
     "\u05B8": "HEBREW_POINT_QAMATS",
+    "\u05c7": "HEBREW_POINT_QAMATS",
+    "\u05ba": "HEBREW_POINT_QAMATS",
     "\u05B9": "HEBREW_POINT_HOLAM",
     "\u05BB": "HEBREW_POINT_QUBUTS",
     "\u05BC": "HEBREW_POINT_DAGESH",
