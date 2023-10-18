@@ -1,4 +1,4 @@
-import json from './text.json';
+// import json from './text.json';
 import {
   letters,
   namedLetters,
@@ -16,15 +16,22 @@ declare global {
   }
 }
 
-const text = json[130].normalize('NFC');
-
 type Phone = Record<(typeof punctuation)[keyof typeof punctuation], boolean> & {
   consonant?: string;
-  letter?: string;
+  letter?: LetterKey;
   sound?: string;
   unknowns?: string[];
   isVavWithHolam?: boolean;
 };
+
+type Punctuation = typeof punctuation;
+type PunctuationKey = keyof Punctuation;
+
+type Letter = typeof letters;
+type LetterKey = keyof Letter;
+
+type Vowel = typeof vowels;
+type VowelKey = keyof Vowel;
 
 export const toPhones = (text: string) => {
   const verses = text.split('\u05c3');
@@ -38,7 +45,7 @@ export const toPhones = (text: string) => {
           const graphemeSegments = segmenter.segment(word.trim());
           const segments = [...graphemeSegments].map((g) => g.segment);
           const graphemes = segments.map((segment) => {
-            const codes = segment.split('');
+            const codes = segment.split('') as PunctuationKey[];
             const phone = { letter: codes.shift() } as Phone;
 
             for (const code of codes) {
@@ -50,7 +57,6 @@ export const toPhones = (text: string) => {
                 const charCode = code.charCodeAt(0).toString(16);
                 const padded = charCode.padStart(4, '0').slice(-4);
                 phone['unknowns'].push(`\\u${padded} ת${code}`);
-                phone[''];
               }
             }
             return phone;
@@ -68,13 +74,20 @@ export const toPhones = (text: string) => {
               sound = 's';
             }
 
-            if (dotted[grapheme.letter!] && grapheme['POINT_DAGESH']) {
-              sound = dotted[grapheme.letter!];
+            const letterWithDot = dotted[grapheme.letter as 'ב'];
+            if (letterWithDot && grapheme['POINT_DAGESH']) {
+              sound = letterWithDot;
             }
+
+            // TODO SHEVA logic
+            // TODO NOACH logic
+            // TODO HIRIQ followed by YUD logic וַחֲסִידֶֽיךָ
+            // TODO TSERE followed by YUD logic eg אַשְׁרֵי
+            // TODO what are we missing?
 
             let hasVowel = false;
             const keys = Object.keys(grapheme);
-            for (const key of keys) {
+            for (const key of keys as VowelKey[]) {
               const vowelSound = vowels[key];
               if (vowelSound) {
                 sound += vowelSound;
@@ -93,7 +106,7 @@ export const toPhones = (text: string) => {
             grapheme.sound = sound;
           });
 
-          const prettyWord = [...segments].reverse().join('');
+          const prettyWord = segments.join('');
 
           if (graphemes.map((g) => g.letter).join('') === 'יהוה') {
             graphemes[0].sound = Hashem.sounds[0];
@@ -109,18 +122,3 @@ export const toPhones = (text: string) => {
   };
   return converted;
 };
-
-const converted = toPhones(text);
-
-console.log(JSON.stringify(converted, null, 2));
-console.error(
-  JSON.stringify(
-    converted.verses
-      .map((v) =>
-        v.words.map((w) => w.graphemes.map((s) => s.sound).join('.')).join(' ')
-      )
-      .join('. '),
-    null,
-    2
-  )
-);

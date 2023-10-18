@@ -1,5 +1,13 @@
 import { useState } from 'react';
 import { dtw } from './dtw';
+import { toPhones } from './toPhones';
+import data from './text.json';
+
+const text = data[130].normalize('NFC');
+
+const reference = toPhones(text);
+
+console.log(reference);
 
 type Heard = Array<Array<{ phone: string; prob: number }>>;
 
@@ -34,7 +42,6 @@ export const App: React.FunctionComponent = () => {
             };
             const recorder = new MediaRecorder(stream);
             setRecorder(recorder);
-            (window as any).recorder = recorder;
             recorder.ondataavailable = async (e) => {
               chunks.push(e.data);
               if (recorder.state == 'inactive') {
@@ -49,11 +56,20 @@ export const App: React.FunctionComponent = () => {
                   method: 'POST',
                   body: form,
                 });
-                const json: Heard = await fetched.json();
-                dtw(['x'], json, (referencePhone, potentialPhones) =>
-                  potentialPhones[0].phone === referencePhone ? 1 : 2
+                const heard: Heard = await fetched.json();
+                const referencePhones = reference.verses
+                  .flatMap((v) =>
+                    v.words.flatMap((w) => w.graphemes.flatMap((g) => g.sound!))
+                  )
+                  .filter(Boolean);
+                const warped = dtw(
+                  referencePhones,
+                  heard,
+                  (referencePhone, potentialPhones) => {
+                    return potentialPhones[0].phone === referencePhone ? 1 : 2;
+                  }
                 );
-                console.log(json);
+                console.log(warped);
               }
             };
             recorder.start();
