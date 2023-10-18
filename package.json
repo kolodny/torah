@@ -10,7 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/cors": "^2.8.15",
+    "@types/express": "^4.17.19",
+    "@types/multer": "^1.4.8",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "extendable-media-recorder": "^9.1.2",
+    "extendable-media-recorder-wav-encoder": "^7.0.98",
     "hebrew-transliteration": "^2.5.0",
+    "multer": "^1.4.5-lts.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsx": "^3.13.0"

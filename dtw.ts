@@ -1,18 +1,14 @@
 // Adapted from https://github.com/GordonLesti/dynamic-time-warping
 
-export const dtw = <T>(
-  ts1: T[],
-  ts2: T[],
-  distanceFunction: (a: T, b: T) => number
+export const dtw = <Reference, Incoming = Reference>(
+  reference: Reference[],
+  incoming: Incoming[],
+  distanceFunction: (a: Reference, b: Incoming) => number
 ) => {
-  const ser1 = ts1;
-  const ser2 = ts2;
-  const distFunc = distanceFunction;
-
   const matrix: number[][] = [];
-  for (let i = 0; i < ser1.length; i++) {
+  for (let i = 0; i < reference.length; i++) {
     matrix[i] = [];
-    for (let j = 0; j < ser2.length; j++) {
+    for (let j = 0; j < incoming.length; j++) {
       let cost = Infinity;
       if (i > 0) {
         cost = Math.min(cost, matrix[i - 1][j]);
@@ -27,17 +23,13 @@ export const dtw = <T>(
           cost = 0;
         }
       }
-      matrix[i][j] = cost + distFunc(ser1[i], ser2[j]);
+      matrix[i][j] = cost + distanceFunction(reference[i], incoming[j]);
     }
   }
 
-  let path: [number, number][] = [];
-
-  const distance = matrix[ser1.length - 1][ser2.length - 1];
-
-  let i = ser1.length - 1;
-  let j = ser2.length - 1;
-  path = [[i, j]];
+  let i = reference.length - 1;
+  let j = incoming.length - 1;
+  const path: [number, number][] = [[i, j]];
   while (i > 0 || j > 0) {
     if (i > 0) {
       if (j > 0) {
@@ -68,7 +60,9 @@ export const dtw = <T>(
       j--;
     }
   }
-  path = path.reverse();
+  path.reverse();
+
+  const distance = matrix[reference.length - 1][incoming.length - 1];
 
   return {
     distance,
