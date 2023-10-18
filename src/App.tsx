@@ -1,28 +1,7 @@
 import { useState } from 'react';
+import { dtw } from './dtw';
 
-// navigator.mediaDevices
-//   .getUserMedia(
-//     // constraints - only audio needed for this app
-//     {
-//       audio: true,
-//     }
-//   )
-
-//   // Success callback
-//   .then((stream) => {
-//     console.log('YO', stream);
-//     const mediaRecorder = new MediaRecorder(stream);
-//     mediaRecorder.start();
-//     console.log(mediaRecorder.state);
-//     setTimeout(() => {
-//       mediaRecorder.stop();
-//     }, 3000);
-//   })
-
-//   // Error callback
-//   .catch((err) => {
-//     console.error(`The following getUserMedia error occurred: ${err}`);
-//   });
+type Heard = Array<Array<{ phone: string; prob: number }>>;
 
 export const App: React.FunctionComponent = () => {
   const [recording, setRecording] = useState(false);
@@ -70,7 +49,10 @@ export const App: React.FunctionComponent = () => {
                   method: 'POST',
                   body: form,
                 });
-                const json = await fetched.json();
+                const json: Heard = await fetched.json();
+                dtw(['x'], json, (referencePhone, potentialPhones) =>
+                  potentialPhones[0].phone === referencePhone ? 1 : 2
+                );
                 console.log(json);
               }
             };

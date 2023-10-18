@@ -1,4 +1,4 @@
-import { dtw } from './dtw';
+import { dtw } from './src/dtw';
 
 const template = [0, 10, 20, 30, 40];
 const heard = [0, 0, 10, 30, 40, 40];
