@@ -50,7 +50,6 @@ const compareFunction = (ref: string, res: Phone[]) => {
 };
 
 const ops = needleman(referencePhones, response, compareFunction);
-console.log(ops);
 
 export const App: React.FunctionComponent = () => {
   const [recording, setRecording] = useState(false);
@@ -67,15 +66,10 @@ export const App: React.FunctionComponent = () => {
     gap,
   });
 
+  console.log(results);
+
   let resultsContent: React.ReactNode = null;
 
-  console.log({ verseWords });
-  console.log(
-    'a',
-    verseWords
-      .flatMap((verse) => verse.map((words) => words.join(' ')).join(':'))
-      .join('! ')
-  );
   if (results) {
     resultsContent = (
       <>
@@ -195,7 +189,6 @@ export const App: React.FunctionComponent = () => {
                     return potentialPhones[0].phone === referencePhone ? 1 : 2;
                   }
                 );
-                console.log(warped);
                 // setResults(ops);
               }
             };

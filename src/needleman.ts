@@ -33,8 +33,6 @@ export const needleman = <Reference, Incoming = Reference>(
     }
   }
 
-  console.log(matrix);
-
   const result: Needleman<Reference, Incoming>[] = [];
 
   while (refLength > 0 && inLength > 0) {
