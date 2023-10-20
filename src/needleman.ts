@@ -1,6 +1,11 @@
 // https://gist.github.com/shinout/f19da7720d130f3925ac
 // https://dke.maastrichtuniversity.nl/o.boes/misc/2013-needleman-wunsch.html
 
+export type Needleman<Reference, Incoming> =
+  | { type: 'match'; expect: Reference; got: Incoming; cost: number }
+  | { type: 'miss'; expect: Reference; cost: number }
+  | { type: 'extra'; got: Incoming; cost: number };
+
 export const needleman = <Reference, Incoming = Reference>(
   reference: Reference[],
   incoming: Incoming[],
@@ -28,11 +33,9 @@ export const needleman = <Reference, Incoming = Reference>(
     }
   }
 
-  const result: Array<
-    | { type: 'match'; expect: Reference; got: Incoming; cost: number }
-    | { type: 'miss'; expect: Reference; cost: number }
-    | { type: 'extra'; got: Incoming; cost: number }
-  > = [];
+  console.log(matrix);
+
+  const result: Needleman<Reference, Incoming>[] = [];
 
   while (refLength > 0 && inLength > 0) {
     const expect = () => reference[refLength];
@@ -40,14 +43,14 @@ export const needleman = <Reference, Incoming = Reference>(
     const got = () => incoming[inLength];
     if (cost() == matrix[refLength - 1][inLength] + gap) {
       refLength--;
-      result.unshift({ type: 'miss', expect: expect(), cost: cost() });
+      result.push({ type: 'miss', expect: expect(), cost: cost() });
     } else if (cost() == matrix[refLength][inLength - 1] + gap) {
       inLength--;
-      result.unshift({ type: 'extra', got: got(), cost: cost() });
+      result.push({ type: 'extra', got: got(), cost: cost() });
     } else {
       refLength--;
       inLength--;
-      result.unshift({
+      result.push({
         type: 'match',
         expect: expect(),
         got: got(),
@@ -55,6 +58,8 @@ export const needleman = <Reference, Incoming = Reference>(
       });
     }
   }
+
+  result.reverse();
 
   return result;
 };

@@ -36,10 +36,10 @@ type VowelKey = keyof Vowel;
 export const toPhones = (text: string) => {
   const verses = text.split('\u05c3');
   const converted = {
-    verses: verses.map((verse) => {
+    verses: verses.slice(0, 1).map((verse) => {
       const words = verse.trim().split(/\s|\u05be/g);
       return {
-        words: words.map((word) => {
+        words: words.slice(0, -1).map((word) => {
           const segmenterOptions = { granularity: 'grapheme' } as const;
           const segmenter = new Intl.Segmenter('he', segmenterOptions);
           const graphemeSegments = segmenter.segment(word.trim());

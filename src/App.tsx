@@ -3,14 +3,27 @@ import { dtw } from './dtw';
 import { toPhones } from './toPhones';
 import data from './text.json';
 import { response } from './response';
-import { needleman } from './needleman';
+import { Needleman, needleman } from './needleman';
 
 const text = data[130].normalize('NFC');
 
-type Heard = Array<Array<{ phone: string; prob: number }>>;
+type Phone = { phone: string; prob: number };
+type Heard = Phone[][];
+type Results = Needleman<string, Phone[]>[];
+
 const reference = toPhones(text);
 
 console.log(reference);
+
+const verseWords = reference.verses
+  .map((v) =>
+    v.words
+      .map((w) => w.graphemes.map((g) => g.letter!).filter(Boolean))
+      .filter(Boolean)
+  )
+  .filter(Boolean);
+
+console.log(verseWords);
 
 const referencePhones = reference.verses
   .map((v) =>
@@ -28,102 +41,105 @@ const referencePhones = reference.verses
   .join(' ')
   .split('');
 
-// referencePhones.length = 0;
-// referencePhones.push('a', 'b', 'c');
-
-// response.length = 0;
-// response.push(
-//   // [{ phone: 'x', prob: 0.8 }],
-//   [{ phone: 'a', prob: 0.8 }],
-//   // [{ phone: '1', prob: 0.8 }],
-//   // [{ phone: 'b', prob: 0.8 }],
-//   [{ phone: 'c', prob: 0.8 }],
-//   // [{ phone: 'd', prob: 0.8 }],
-//   [{ phone: 'e', prob: 0.8 }]
-//   // [{ phone: 'f', prob: 0.8 }]
-// );
-
 console.log(referencePhones.join(''));
 console.log(response);
 
-const ops = needleman(referencePhones, response, (ref, res) => {
+const compareFunction = (ref: string, res: Phone[]) => {
   const found = res.find((p) => p.phone.replace('<blk>', '') === ref);
   return found?.prob ?? 0;
-});
+};
+
+const ops = needleman(referencePhones, response, compareFunction);
 console.log(ops);
-
-// console.log(test([10, 30, 40], [10, 30]));
-// console.log(test([10, 30, 40], [10, 40]));
-// console.log(test([10, 30], [10, 30, 40]));
-// console.log(test([10], [10, 30, 40]));
-// console.log(test([30], [10, 30, 40]));
-
-// referencePhones.unshift('*');
-// response.unshift([]);
-
-// const diffed = dtw(referencePhones, response, (reference, potentialPhones) => {
-//   const found = potentialPhones.find(
-//     (p) => p.phone.replace('<blk>', '') === reference
-//   );
-//   return 1 - (found?.prob ?? 0);
-// });
-// console.log(diffed);
-
-// // debugger;
-// const path = diffed.path;
-// for (let index = 0; index < path.length; index++) {
-//   const point = path[index];
-//   const lastPoint = index === 0 ? [-1, -1] : path[index - 1];
-//   const lastScore = index === 0 ? 0 : diffed.matrix[lastPoint[0]][lastPoint[1]];
-//   const score = diffed.matrix[point[0]][point[1]];
-//   const scoreDiff = score - lastScore;
-//   const movedX = point[0] === lastPoint[0] + 1;
-//   const movedY = point[1] === lastPoint[1] + 1;
-//   // console.log(lastPoint, point, movedX, movedY);
-//   if (movedX && movedY) {
-//     console.log(
-//       'matched',
-//       referencePhones[point[0]].trim() || '<blk>',
-//       response[point[1]].map((p) => p.phone).join(', '),
-//       scoreDiff,
-//       { lastPoint, point }
-//     );
-//   } else if (movedX) {
-//     console.log(
-//       'missed',
-//       referencePhones[point[0]].trim() || '<blk>',
-//       scoreDiff,
-//       { lastPoint, point, score, lastScore }
-//     );
-//   } else if (movedY) {
-//     // console.log('extra', response[lastPoint[0]] || '<blk>', scoreDiff);
-//     console.log('extra', response[point[0]] || '<blk>', scoreDiff, {
-//       lastPoint,
-//       point,
-//       score,
-//       lastScore,
-//     });
-//   }
-// }
-
-// let lastPoint = path[0];
-// for (const p of path.slice(1)) {
-//   if (p[0] === p[1])
-//   if (p[0] === lastPoint[0] + 1) {
-//     if (p[1] === lastPoint[1] + 1) {
-//       console.log('match', lastPoint[1], referencePhones[lastPoint[1]]);
-//     } else {
-//       console.log('missed', referencePhones[p[1]]);
-//     }
-//   } else {
-//     console.log('extra', response[p[0]]);
-//   }
-//   lastPoint = p;
-// }
 
 export const App: React.FunctionComponent = () => {
   const [recording, setRecording] = useState(false);
   const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
+
+  // const [results, setResults] = useState<Results>();
+  const [match, setMatch] = useState(3);
+  const [sub, setSub] = useState(-1);
+  const [gap, setGap] = useState(-1);
+
+  const results = needleman(referencePhones, response, compareFunction, {
+    match,
+    sub,
+    gap,
+  });
+
+  let resultsContent: React.ReactNode = null;
+
+  console.log({ verseWords });
+  console.log(
+    'a',
+    verseWords
+      .flatMap((verse) => verse.map((words) => words.join(' ')).join(':'))
+      .join('! ')
+  );
+  if (results) {
+    resultsContent = (
+      <>
+        <label>
+          Match
+          <input
+            type="number"
+            value={match}
+            onChange={(e) => setMatch(+e.target.value)}
+          />
+        </label>
+        <label>
+          Sub
+          <input
+            type="number"
+            value={sub}
+            onChange={(e) => setSub(+e.target.value)}
+          />
+        </label>
+        <label>
+          Gap
+          <input
+            type="number"
+            value={gap}
+            onChange={(e) => setGap(+e.target.value)}
+          />
+        </label>
+        <div>
+          {verseWords
+            .flatMap((verse) => verse.map((words) => words.join('')).join(' '))
+            .join(': ')}
+        </div>
+        <pre>{referencePhones.join(' ')}</pre>
+        <pre>
+          {results.map((result) => {
+            if (result.type === 'match') {
+              const matching = result.got.find(
+                (g) => result.expect === g.phone
+              );
+              if (!matching) {
+                return (
+                  <span
+                    style={{ display: 'inline-flex', flexDirection: 'column' }}
+                  >
+                    <div style={{ color: 'pink' }}>{result.expect}</div>
+                    <div style={{ color: 'red' }}>{result.got[0].phone} </div>
+                  </span>
+                );
+              }
+              return <span style={{ color: 'green' }}>{result.expect} </span>;
+            }
+            if (result.type === 'miss') {
+              return <span style={{ color: 'pink' }}>{result.expect} </span>;
+            }
+            if (result.type === 'extra') {
+              return (
+                <span style={{ color: 'red' }}>{result.got[0].phone} </span>
+              );
+            }
+          })}
+        </pre>
+      </>
+    );
+  }
 
   return (
     <>
@@ -180,6 +196,7 @@ export const App: React.FunctionComponent = () => {
                   }
                 );
                 console.log(warped);
+                // setResults(ops);
               }
             };
             recorder.start();
@@ -190,6 +207,7 @@ export const App: React.FunctionComponent = () => {
       >
         {recording ? 'Stop recording' : 'Record'} audio
       </button>
+      {resultsContent}
     </>
   );
 };
