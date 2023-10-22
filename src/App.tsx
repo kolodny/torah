@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { dtw } from './dtw';
 import { toPhones } from './toPhones';
 import data from './text.json';
@@ -49,8 +49,6 @@ const compareFunction = (ref: string, res: Phone[]) => {
   return found?.prob ?? 0;
 };
 
-const ops = needleman(referencePhones, response, compareFunction);
-
 export const App: React.FunctionComponent = () => {
   const [recording, setRecording] = useState(false);
   const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
@@ -58,18 +56,37 @@ export const App: React.FunctionComponent = () => {
   // const [results, setResults] = useState<Results>();
   const [match, setMatch] = useState(3);
   const [sub, setSub] = useState(-1);
-  const [gap, setGap] = useState(-1);
+  const [gap, setGap] = useState(-2);
 
-  const results = needleman(referencePhones, response, compareFunction, {
+  const initialResult = needleman(referencePhones, response, compareFunction, {
     match,
     sub,
     gap,
   });
 
-  console.log(results);
+  const [results, setResults] = useState(initialResult);
+
+  const [recordings, setRecordings] = useState<string[]>([]);
+
+  useEffect(() => {
+    setResults(
+      needleman(referencePhones, response, compareFunction, {
+        match,
+        sub,
+        gap,
+      })
+    );
+  }, [match, sub, gap]);
 
   let resultsContent: React.ReactNode = null;
 
+  console.log({ verseWords });
+  console.log(
+    'a',
+    verseWords
+      .flatMap((verse) => verse.map((words) => words.join(' ')).join(':'))
+      .join('! ')
+  );
   if (results) {
     resultsContent = (
       <>
@@ -147,18 +164,8 @@ export const App: React.FunctionComponent = () => {
             const chunks: Blob[] = [];
             const makeLink = () => {
               const blob = new Blob(chunks, { type: 'audio/ogg' }),
-                url = URL.createObjectURL(blob),
-                mt = document.createElement('audio'),
-                hf = document.createElement('a');
-
-              mt.src = url;
-              mt.controls = true;
-
-              hf.href = url;
-              hf.download = `file`;
-              hf.innerHTML = `donwload ${hf.download}`;
-              document.body.appendChild(hf);
-              document.body.appendChild(mt);
+                url = URL.createObjectURL(blob);
+              setRecordings((recordings) => [...recordings, url]);
             };
             const recorder = new MediaRecorder(stream);
             setRecorder(recorder);
@@ -177,19 +184,19 @@ export const App: React.FunctionComponent = () => {
                   body: form,
                 });
                 const heard: Heard = await fetched.json();
-                const referencePhones = reference.verses
-                  .flatMap((v) =>
-                    v.words.flatMap((w) => w.graphemes.flatMap((g) => g.sound!))
-                  )
-                  .filter(Boolean);
-                const warped = dtw(
-                  referencePhones,
-                  heard,
-                  (referencePhone, potentialPhones) => {
-                    return potentialPhones[0].phone === referencePhone ? 1 : 2;
-                  }
+                // const referencePhones = reference.verses
+                //   .flatMap((v) =>
+                //     v.words.flatMap((w) => w.graphemes.flatMap((g) => g.sound!))
+                //   )
+                //   .filter(Boolean);
+
+                setResults(
+                  needleman(referencePhones, heard, compareFunction, {
+                    match,
+                    sub,
+                    gap,
+                  })
                 );
-                // setResults(ops);
               }
             };
             recorder.start();
@@ -201,6 +208,12 @@ export const App: React.FunctionComponent = () => {
         {recording ? 'Stop recording' : 'Record'} audio
       </button>
       {resultsContent}
+
+      {recordings.map((recording) => (
+        <div>
+          <audio src={recording} controls />
+        </div>
+      ))}
     </>
   );
 };

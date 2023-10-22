@@ -11,7 +11,7 @@ export const needleman = <Reference, Incoming = Reference>(
   incoming: Incoming[],
   matches = (expect: Reference, got: Incoming) =>
     expect === (got as never) ? 1 : (0 as number),
-  { match = 3, sub = -1, gap = -1 } = {}
+  { match = 3, sub = -1, gap = -2 } = {}
 ) => {
   let refLength = reference.length;
   let inLength = incoming.length;
