@@ -35,19 +35,28 @@ export const needleman = <Reference, Incoming = Reference>(
 
   const result: Needleman<Reference, Incoming>[] = [];
 
+  let line1 = '';
+  let line2 = '';
+
   while (refLength > 0 && inLength > 0) {
     const expect = () => reference[refLength];
     const cost = () => matrix[refLength][inLength];
     const got = () => incoming[inLength];
     if (cost() == matrix[refLength - 1][inLength] + gap) {
       refLength--;
+      line1 = expect() + line1;
+      line2 = '-' + line2;
       result.push({ type: 'miss', expect: expect(), cost: cost() });
     } else if (cost() == matrix[refLength][inLength - 1] + gap) {
       inLength--;
+      line1 = '-' + line1;
+      // line2 = got()[0].phone + line2;
       result.push({ type: 'extra', got: got(), cost: cost() });
     } else {
       refLength--;
       inLength--;
+      line1 = expect() + line1;
+      // line2 = got()[0].phone + line2;
       result.push({
         type: 'match',
         expect: expect(),
@@ -56,6 +65,9 @@ export const needleman = <Reference, Incoming = Reference>(
       });
     }
   }
+
+  console.log(line1);
+  console.log(line2);
 
   result.reverse();
 

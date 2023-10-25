@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
-import { dtw } from './dtw';
 import { toPhones } from './toPhones';
 import data from './text.json';
 import { response } from './response';
-import { Needleman, needleman } from './needleman';
+import { needleman } from './needleman';
+import { ApiResult, Heard } from './types';
 
 const text = data[130].normalize('NFC');
 
-type Phone = { phone: string; prob: number };
-type Heard = Phone[][];
-type Results = Needleman<string, Phone[]>[];
+// type Heard = Phone[][];
+// type Results = Needleman<string, Phone[]>[];
 
 const reference = toPhones(text);
 
@@ -44,8 +43,8 @@ const referencePhones = reference.verses
 console.log(referencePhones.join(''));
 console.log(response);
 
-const compareFunction = (ref: string, res: Phone[]) => {
-  const found = res.find((p) => p.phone.replace('<blk>', '') === ref);
+const compareFunction = (ref: string, res: Heard) => {
+  const found = res.sounds.find((p) => p.phone.replace('<blk>', '') === ref);
   return found?.prob ?? 0;
 };
 
@@ -123,7 +122,7 @@ export const App: React.FunctionComponent = () => {
         <pre>
           {results.map((result) => {
             if (result.type === 'match') {
-              const matching = result.got.find(
+              const matching = result.got.sounds.find(
                 (g) => result.expect === g.phone
               );
               if (!matching) {
@@ -132,7 +131,9 @@ export const App: React.FunctionComponent = () => {
                     style={{ display: 'inline-flex', flexDirection: 'column' }}
                   >
                     <div style={{ color: 'pink' }}>{result.expect}</div>
-                    <div style={{ color: 'red' }}>{result.got[0].phone} </div>
+                    <div style={{ color: 'red' }}>
+                      {result.got.sounds[0].phone}{' '}
+                    </div>
                   </span>
                 );
               }
@@ -143,7 +144,9 @@ export const App: React.FunctionComponent = () => {
             }
             if (result.type === 'extra') {
               return (
-                <span style={{ color: 'red' }}>{result.got[0].phone} </span>
+                <span style={{ color: 'red' }}>
+                  {result.got.sounds[0].phone}{' '}
+                </span>
               );
             }
           })}
@@ -183,7 +186,7 @@ export const App: React.FunctionComponent = () => {
                   method: 'POST',
                   body: form,
                 });
-                const heard: Heard = await fetched.json();
+                const heard: ApiResult = await fetched.json();
                 // const referencePhones = reference.verses
                 //   .flatMap((v) =>
                 //     v.words.flatMap((w) => w.graphemes.flatMap((g) => g.sound!))
