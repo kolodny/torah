@@ -49,6 +49,17 @@ export const Toc: React.FC = () => {
   });
   const [current, setCurrent] = useUrlParam('id', '0');
 
+  const links = useQuery({
+    queryKey: ['links', current],
+    queryFn: async () => {
+      return db
+        .select()
+        .from(schema.links)
+        .where(eq(schema.links.fromId, +current))
+        .all();
+    },
+  });
+
   const client = useQueryClient();
   const content = useQuery({
     queryKey: ['content', current],
@@ -208,23 +219,40 @@ export const Toc: React.FC = () => {
               <tr>
                 <td>Section Path</td>
                 <td>Text</td>
+                <td>Links</td>
               </tr>
             </thead>
             <tbody>
-              {content.data?.map((data) => (
-                <tr key={data.id}>
-                  <td>{data.sectionPath?.join(' > ')}</td>
-                  <td>
-                    <div
-                      style={{
-                        display: 'inline-block',
-                        maxWidth: '50vw',
-                      }}
-                      dangerouslySetInnerHTML={{ __html: data.text ?? '' }}
-                    />
-                  </td>
-                </tr>
-              ))}
+              {content.data?.map((data) => {
+                const linksForLine = [
+                  ...new Set(
+                    links.data?.filter((link) => link.fromLine === data.line)
+                  ),
+                ].map((link) => {
+                  const other =
+                    link.fromId === +current ? link.toId : link.fromId;
+                  return { ...link, other: toc.data[other] };
+                });
+                return (
+                  <tr key={data.id}>
+                    <td>{data.sectionPath?.join(' > ')}</td>
+                    <td>
+                      <div
+                        style={{
+                          display: 'inline-block',
+                          maxWidth: '50vw',
+                        }}
+                        dangerouslySetInnerHTML={{ __html: data.text ?? '' }}
+                      />
+                    </td>
+                    <td>
+                      {linksForLine.map((link) => (
+                        <div key={link.id}>{link.other.titleEnglish}</div>
+                      ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

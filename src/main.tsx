@@ -6,9 +6,13 @@ import { getOrm } from './orm/index';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
 
-const { db, schema, worker } = await getOrm();
+const { db, schema, worker, info } = await getOrm();
 
 export { db, schema, worker };
+
+console.log('Running SQLite3 version', info.sqliteVersion);
+if (info.opfs) console.log(`OPFS is available, using persisted databases`);
+else console.log(`OPFS is not available, using transient databases`);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const windowAny = window as any;

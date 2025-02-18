@@ -32,6 +32,8 @@ const updater = _.throttle(() => barStack.update(), 100);
 const GLOB = '*';
 // const GLOB = '**בראשית**';
 
+const baseToId: Record<string, number> = {};
+
 await buildToc();
 await buildBooks();
 await buildLinks();
@@ -151,10 +153,16 @@ async function buildBooks() {
     const data = readFileSync(file, 'utf-8');
     const actualTitle = data.match(/<h1>(.*)<\/h1>/)?.[1];
     const id = titleToId[actualTitle ?? title];
+    baseToId[title] = id;
+
     if (!id) {
       const r1 = reverseForTerminal(actualTitle ?? '').trim();
       const r2 = reverseForTerminal(title).trim();
-      barStack.log(`Could not find id for title: ${r1} or ${r2}\n`);
+      if (r1 === r2) {
+        barStack.log(`Could not find id for title: ${r1}. title: ${title}\n`);
+      } else {
+        barStack.log(`Could not find id for title: ${r1} or ${r2}\n`);
+      }
     } else {
       idsWithContent.push(id);
       const path: string[] = [];
@@ -167,7 +175,7 @@ async function buildBooks() {
           path[heading.level] = heading.path;
         } else if (line) {
           const sectionPath = path.filter(Boolean);
-          const pathMatcher = /\((?<path>[\u0590-\u05FF]+)\)\s*/;
+          const pathMatcher = /^\((?<path>[\u0590-\u05FF]+)\)\s*/;
           const match = line.match(pathMatcher)?.groups;
           if (match?.path) {
             sectionPath.push(`פסוק ${match.path}`);
@@ -197,6 +205,20 @@ async function buildBooks() {
 }
 
 async function buildLinks() {
+  const tocs = db
+    .select({ id: schema.toc.id, title: schema.toc.titleHebrew })
+    .from(schema.toc)
+    .all();
+
+  const titleToId = Object.fromEntries(tocs.map((toc) => [toc.title!, toc.id]));
+  const logged = new Set<string>();
+  const log = (message: string) => {
+    if (!logged.has(message)) {
+      barStack.log(message);
+      logged.add(message);
+    }
+  };
+
   const files = sync(`${root}/otzaria-library/links/**/${GLOB}.json`);
   const sizes = files.map((file) => statSync(file).size);
   let total = 0;
@@ -229,17 +251,34 @@ async function buildLinks() {
     };
 
     const data: Link[] = JSON.parse(readFileSync(file, 'utf-8'));
-    const base = reverseForTerminal(basename(file, '_links.json'));
+    const baseFile = basename(file, '_links.json');
+
+    const base = reverseForTerminal(baseFile);
+
     subBar.start(data.length, 0, { message: `Processing links for ${base}` });
     for (const link of data) {
       const type = link['Connection Type'] ?? link['Conection Type'];
-      insert({
-        fromId: link.line_index_1,
-        fromLine: link.line_index_1,
-        toId: link.line_index_2,
-        toLine: link.line_index_2,
-        connectionType: type,
-      });
+
+      const toFile = link.path_2.split('\\').pop()?.replace('.txt', '');
+      const toId = baseToId[toFile!] ?? titleToId[toFile!];
+      const fromId = baseToId[baseFile];
+
+      if (toId && fromId) {
+        insert({
+          fromId,
+          fromLine: link.line_index_1,
+          toId,
+          toLine: link.line_index_2,
+          connectionType: type,
+        });
+      } else {
+        if (!toId) {
+          log(`Could not find id for toId: ${link.heRef_2}\n`);
+        } else {
+          log(`Could not find id for fromId: ${baseFile}\n`);
+        }
+      }
+
       subBar.increment();
       updater();
     }

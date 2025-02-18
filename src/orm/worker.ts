@@ -6,13 +6,10 @@ const sqlite3 = await sqlite3InitModule({
   printErr: console.error,
 });
 
-console.log('Running SQLite3 version', sqlite3.version.libVersion);
-
 const opfs = 'opfs' in sqlite3;
-const Db = sqlite3.oo1[opfs ? 'OpfsDb' : 'DB'];
+const sqliteVersion = sqlite3.version.libVersion;
 
-if (opfs) console.log(`OPFS is available, using persisted databases`);
-else console.log(`OPFS is not available, using transient databases`);
+const Db = sqlite3.oo1[opfs ? 'OpfsDb' : 'DB'];
 
 let db: Database | undefined = undefined;
 
@@ -112,6 +109,9 @@ const api = {
 };
 
 expose(api);
-postMessage('__EXPOSED__');
+
+const ready = { type: 'ready', sqliteVersion, opfs };
+export type Ready = typeof ready;
+postMessage(ready);
 
 export type Api = typeof api;

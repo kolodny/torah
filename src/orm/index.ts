@@ -4,23 +4,26 @@ import { drizzle } from 'drizzle-orm/sqlite-proxy';
 import * as schema from '../../orm/schema';
 
 import Worker from './worker?worker';
-import { Api, UploadInfo } from './worker';
+import { Api, UploadInfo, Ready } from './worker';
 import { eq } from 'drizzle-orm';
 
 const getWorker = async () => {
   const worker = new Worker();
-  await new Promise<void>((resolve) => {
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { type, ...info } = await new Promise<Ready>((resolve) => {
     worker.onmessage = (event) => {
-      if (event.data === '__EXPOSED__') {
-        resolve(undefined);
+      const data = event.data as Ready;
+      if (data.type === 'ready') {
+        resolve(data);
       }
     };
   });
-  return wrap<Api>(worker);
+  return { worker: wrap<Api>(worker), info };
 };
 
 const getSqliteProxy = async (file: string) => {
-  const worker = await getWorker();
+  const { worker, info } = await getWorker();
 
   await worker.open(file);
 
@@ -33,16 +36,16 @@ const getSqliteProxy = async (file: string) => {
 
   type Picked = Pick<typeof worker, keyof typeof worker & string>;
 
-  return { sqliteProxy, worker: worker as Picked };
+  return { sqliteProxy, worker: worker as Picked, info };
 };
 
 export const getOrm = async () => {
   const path = '/db.sqlite';
-  const linked = await getWorker();
+  const { worker: linked } = await getWorker();
   if (!(await linked.exists(path))) {
     await linked.upload(`/db${path}`, path);
   }
-  const { sqliteProxy, worker } = await getSqliteProxy('/db.sqlite');
+  const { sqliteProxy, worker, info } = await getSqliteProxy('/db.sqlite');
   const db = drizzle<typeof schema>(sqliteProxy, { schema });
 
   type Fn = (...args: never[]) => unknown;
@@ -84,5 +87,5 @@ export const getOrm = async () => {
     },
   } satisfies Record<keyof typeof worker | 'merge', Fn>;
 
-  return { db, schema, worker: workerApi };
+  return { db, schema, worker: workerApi, info };
 };
