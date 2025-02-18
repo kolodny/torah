@@ -12,24 +12,20 @@ type Node = Omit<Partial<Toc>, 'id'> & {
 };
 
 const buildHierarchy = (data: Toc[]) => {
-  const root: Node = {
-    id: 0,
-    children: [],
-  };
+  const root: Node = { id: 0, children: [] };
 
-  const byId: Record<string, Node> = { 0: root };
+  const nodes: Record<string, Node> = { 0: root };
 
   for (const topic of data) {
-    const node: Node = { ...topic, children: [] };
-    byId[topic.id] = node;
+    nodes[topic.id] = { ...topic, children: [] };
   }
-  for (const node of Object.values(byId)) {
-    const parent = node.id !== 0 ? byId[node.parentId ?? 0] : undefined;
+  for (const node of Object.values(nodes)) {
+    const parent = node.id !== 0 ? nodes[node.parentId ?? 0] : undefined;
     parent?.children.push(node);
     node.parent = parent;
   }
 
-  return byId;
+  return nodes;
 };
 
 const formatBytes = (bytes: number) =>
@@ -205,17 +201,34 @@ export const Toc: React.FC = () => {
       {content.isLoading ? <div>Loading content...</div> : null}
       {download}
 
-      <div style={{ direction: 'rtl' }}>
-        {content.data?.map((data) => (
-          <div style={{ display: 'flex', gap: 8 }} key={data.id}>
-            <span>{data.sectionPath?.concat('')?.join(' > ')}</span>
-            <span
-              style={{ display: 'inline-block', maxWidth: '50vw' }}
-              dangerouslySetInnerHTML={{ __html: data.text ?? '' }}
-            />
-          </div>
-        ))}
-      </div>
+      {!!content.data?.length && (
+        <div style={{ direction: 'rtl' }}>
+          <table>
+            <thead>
+              <tr>
+                <td>Section Path</td>
+                <td>Text</td>
+              </tr>
+            </thead>
+            <tbody>
+              {content.data?.map((data) => (
+                <tr key={data.id}>
+                  <td>{data.sectionPath?.join(' > ')}</td>
+                  <td>
+                    <div
+                      style={{
+                        display: 'inline-block',
+                        maxWidth: '50vw',
+                      }}
+                      dangerouslySetInnerHTML={{ __html: data.text ?? '' }}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

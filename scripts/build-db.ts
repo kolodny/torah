@@ -47,7 +47,7 @@ function makeInsert<Insert>(cb: (values: Insert[]) => void) {
     if (values.length === 100) flush();
   };
   const flush = () => {
-    cb(values);
+    if (values.length) cb(values);
     values.length = 0;
   };
 
@@ -152,25 +152,32 @@ async function buildBooks() {
     const actualTitle = data.match(/<h1>(.*)<\/h1>/)?.[1];
     const id = titleToId[actualTitle ?? title];
     if (!id) {
-      const r1 = reverseForTerminal(actualTitle ?? '');
-      const r2 = reverseForTerminal(title);
+      const r1 = reverseForTerminal(actualTitle ?? '').trim();
+      const r2 = reverseForTerminal(title).trim();
       barStack.log(`Could not find id for title: ${r1} or ${r2}\n`);
     } else {
       idsWithContent.push(id);
-      const path = [];
+      const path: string[] = [];
       for (const [index, fullLine] of Object.entries(data.split('\n'))) {
-        const line = fullLine.trim();
-        const matcher = /^<h(?<level>\d)>(?<path>.*)<\/h\k<level>>$/;
-        const heading = line.match(matcher)?.groups;
+        let line = fullLine.trim();
+        const levelMatcher = /^<h(?<level>\d)>(?<path>.*)<\/h\k<level>>$/;
+        const heading = line.match(levelMatcher)?.groups;
         if (heading) {
           path.length = +heading.level;
           path[heading.level] = heading.path;
         } else if (line) {
+          const sectionPath = path.filter(Boolean);
+          const pathMatcher = /\((?<path>[\u0590-\u05FF]+)\)\s*/;
+          const match = line.match(pathMatcher)?.groups;
+          if (match?.path) {
+            sectionPath.push(`פסוק ${match.path}`);
+            line = line.replace(pathMatcher, '');
+          }
           insert({
             tocId: id,
             text: line,
             line: +index,
-            sectionPath: path.filter(Boolean),
+            sectionPath,
           });
         }
       }
@@ -190,7 +197,7 @@ async function buildBooks() {
 }
 
 async function buildLinks() {
-  const files = sync(`${root}/links/**/${GLOB}.json`);
+  const files = sync(`${root}/otzaria-library/links/**/${GLOB}.json`);
   const sizes = files.map((file) => statSync(file).size);
   let total = 0;
   for (const size of sizes) total += size;

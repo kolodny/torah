@@ -20,7 +20,7 @@ cd otzaria-library
 
 # Set up sparse checkout before any files are downloaded
 git sparse-checkout init --cone
-git sparse-checkout set links/ אוצריא/ books lists/ספריא/table_of_contents.json
+git sparse-checkout set links/ אוצריא/ 'books lists/ספריא/'
 
 # Here's where the files get downloaded, this will still take some time to run
 git checkout HEAD
