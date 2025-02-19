@@ -184,7 +184,7 @@ async function buildBooks() {
           insert({
             tocId: id,
             text: line,
-            line: +index,
+            line: +index + 1, // 1-indexed
             sectionPath,
           });
         }

@@ -1,8 +1,8 @@
 import React from 'react';
 import { db, schema, worker } from './main';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { eq, sql } from 'drizzle-orm';
-import { useUrlParam } from './use-url-param';
+import { eq, or, sql } from 'drizzle-orm';
+import { NumberParam, useQueryParams } from 'use-query-params';
 
 type Toc = typeof schema.toc.$inferSelect;
 type Node = Omit<Partial<Toc>, 'id'> & {
@@ -39,6 +39,51 @@ const formatBytes = (bytes: number) =>
     .format(bytes)
     .replace(/BB/, 'GB');
 
+const Links: React.FunctionComponent<{
+  links: Array<{
+    otherLine: number;
+    other: Node;
+    id: number;
+    fromId: number;
+    fromLine: number;
+    toId: number;
+    toLine: number;
+    connectionType: string | null;
+  }>;
+}> = ({ links }) => {
+  const [expanded, setExpanded] = React.useState(false);
+  const [, updateParams] = useQueryParams();
+  const map = (link: (typeof links)[number]) => {
+    const label = `${link.other.titleHebrew} ${link.otherLine}`;
+    return (
+      <div key={link.id}>
+        <a
+          onClick={(e) => {
+            e.preventDefault();
+            const current = link.other.id;
+            const params = { line: link.otherLine, current };
+            updateParams(params);
+          }}
+          href={`/?current=${link.other.id}&line=${link.otherLine}`}
+        >
+          {label}
+        </a>
+      </div>
+    );
+  };
+
+  if (links.length < 5) return links.map(map);
+
+  return (
+    <div>
+      <button onClick={() => setExpanded(!expanded)}>
+        {expanded ? 'Hide' : `Show ${links.length}`} links
+      </button>
+      {expanded ? links.map(map) : null}
+    </div>
+  );
+};
+
 export const Toc: React.FC = () => {
   const toc = useQuery({
     queryKey: ['toc'],
@@ -47,7 +92,12 @@ export const Toc: React.FC = () => {
       return buildHierarchy(tocs);
     },
   });
-  const [current, setCurrent] = useUrlParam('id', '0');
+  const [params, updateParams] = useQueryParams({
+    line: NumberParam,
+    current: NumberParam,
+  });
+  const line = params.line;
+  const current = params.current ?? 0;
 
   const links = useQuery({
     queryKey: ['links', current],
@@ -55,7 +105,9 @@ export const Toc: React.FC = () => {
       return db
         .select()
         .from(schema.links)
-        .where(eq(schema.links.fromId, +current))
+        .where(
+          or(eq(schema.links.fromId, current), eq(schema.links.toId, current))
+        )
         .all();
     },
   });
@@ -67,7 +119,7 @@ export const Toc: React.FC = () => {
       return db
         .select()
         .from(schema.content)
-        .where(eq(schema.content.tocId, +current))
+        .where(eq(schema.content.tocId, current))
         .all();
     },
   });
@@ -102,6 +154,25 @@ export const Toc: React.FC = () => {
     return path;
   }, [current, data]);
 
+  React.useEffect(() => {
+    asyncEffect();
+    async function asyncEffect() {
+      if (data?.[current]?.hasContent && content.data?.length === 0) {
+        let lastPercent = -1;
+        await worker.merge(current, (info) => {
+          const percent = Math.floor((info.processed / info.total) * 100);
+          if (percent !== lastPercent) {
+            const message = `Downloading "${data?.[current].titleEnglish}" ${percent}% done`;
+            console.log(message);
+            lastPercent = percent;
+          }
+        });
+        client.invalidateQueries({ queryKey: ['content'] });
+        client.invalidateQueries({ queryKey: ['links'] });
+      }
+    }
+  }, [client, content.data?.length, current, data]);
+
   if (toc.isLoading) return <div>Loading...</div>;
   if (toc.error) return <div>Error: {toc.error.message}</div>;
   if (!data) return <div>No data</div>;
@@ -113,27 +184,10 @@ export const Toc: React.FC = () => {
 
   let download = <></>;
   if (data[current]?.hasContent && content.data?.length === 0) {
-    download = (
-      <button
-        onClick={async () => {
-          let lastPercent = -1;
-          await worker.merge(+current, (info) => {
-            const percent = Math.floor((info.processed / info.total) * 100);
-            if (percent !== lastPercent) {
-              const message = `Downloading "${data[current].titleEnglish}" ${percent}% done`;
-              console.log(message);
-              lastPercent = percent;
-            }
-          });
-          client.invalidateQueries({ queryKey: ['content'] });
-        }}
-      >
-        Download
-      </button>
-    );
+    download = <>Downloading {data[current].titleHebrew}</>;
   }
 
-  const title = (node?: Node) => node?.categoryEnglish ?? node?.titleEnglish;
+  const title = (node?: Node) => node?.categoryHebrew ?? node?.titleHebrew;
   const calculateSize = (node: Node) => {
     let size = data[node.id]?.fileSize ?? 0;
     for (const child of node.children) {
@@ -142,6 +196,7 @@ export const Toc: React.FC = () => {
     return size;
   };
   const calculateMissingBytes = (node: Node) => {
+    if (grouped.isLoading || toc.isLoading) return 0;
     const localNode = grouped.data?.[node.id];
     const actual = data[node.id]?.contentEntries ?? 0;
     let size = localNode === actual ? 0 : data[node.id].fileSize ?? 0;
@@ -172,7 +227,7 @@ export const Toc: React.FC = () => {
                     href=""
                     onClick={(e) => {
                       e.preventDefault();
-                      setCurrent(`${topic.id}`);
+                      updateParams({ current: topic.id, line: null });
                     }}
                   >
                     {title(topic)}
@@ -189,23 +244,28 @@ export const Toc: React.FC = () => {
   }
 
   return (
-    <div>
+    <div style={{ direction: 'rtl' }}>
       <h2>
-        {breadcrumbs.map((id, index) => (
-          <span key={id}>
-            {index ? ' > ' : null}
-            <a
-              href={`/${id}`}
-              onClick={(e) => {
-                e.preventDefault();
-                setCurrent(`${id}`);
-              }}
-            >
-              {id === 0 ? 'Root' : title(data[id])} (Missing{' '}
-              {formatBytes(calculateMissingBytes(data[id]))})
-            </a>
-          </span>
-        ))}
+        {breadcrumbs.map((id, index) => {
+          const missingBytes = calculateMissingBytes(data[id]);
+          const missing = !missingBytes
+            ? ''
+            : `(Missing ${formatBytes(missingBytes)})`;
+          return (
+            <span key={id}>
+              {index ? ' > ' : null}
+              <a
+                href={`/${id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  updateParams({ current: id, line: null });
+                }}
+              >
+                {id === 0 ? 'Root' : title(data[id])} {missing}
+              </a>
+            </span>
+          );
+        })}
       </h2>
       {table}
 
@@ -213,11 +273,18 @@ export const Toc: React.FC = () => {
       {download}
 
       {!!content.data?.length && (
-        <div style={{ direction: 'rtl' }}>
+        <div>
           <table>
             <thead>
-              <tr>
+              <tr
+                style={{
+                  position: 'sticky',
+                  top: 0,
+                  background: 'white',
+                }}
+              >
                 <td>Section Path</td>
+                <td>Line</td>
                 <td>Text</td>
                 <td>Links</td>
               </tr>
@@ -228,27 +295,41 @@ export const Toc: React.FC = () => {
                   ...new Set(
                     links.data?.filter((link) => link.fromLine === data.line)
                   ),
-                ].map((link) => {
-                  const other =
-                    link.fromId === +current ? link.toId : link.fromId;
-                  return { ...link, other: toc.data[other] };
-                });
+                ]
+                  .map((link) => {
+                    const isFrom = link.fromId === current;
+                    const otherLine = isFrom ? link.toLine : link.fromLine;
+                    const other = isFrom ? link.toId : link.fromId;
+
+                    return { ...link, otherLine, other: toc.data[other] };
+                  })
+                  .filter((l) => l.other.hasContent);
+                const thisItem = line === data.line;
                 return (
                   <tr key={data.id}>
                     <td>{data.sectionPath?.join(' > ')}</td>
+                    <td>{data.line}</td>
                     <td>
                       <div
+                        ref={
+                          thisItem
+                            ? (e) => e?.scrollIntoView({ block: 'center' })
+                            : undefined
+                        }
                         style={{
                           display: 'inline-block',
                           maxWidth: '50vw',
+                          background: thisItem ? 'yellow' : 'none',
                         }}
                         dangerouslySetInnerHTML={{ __html: data.text ?? '' }}
                       />
                     </td>
                     <td>
-                      {linksForLine.map((link) => (
-                        <div key={link.id}>{link.other.titleEnglish}</div>
-                      ))}
+                      {links.isLoading ? (
+                        'Loading links...'
+                      ) : (
+                        <Links links={linksForLine} />
+                      )}
                     </td>
                   </tr>
                 );

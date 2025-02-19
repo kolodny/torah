@@ -5,6 +5,8 @@ import { App } from './app';
 import { getOrm } from './orm/index';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
+import { QueryParamProvider } from 'use-query-params';
+import { ReactRouterAdapter } from './query-param-adapter';
 
 const { db, schema, worker, info } = await getOrm();
 
@@ -32,9 +34,11 @@ const queryClient = new QueryClient();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
+      <QueryParamProvider adapter={ReactRouterAdapter}>
+        <QueryClientProvider client={queryClient}>
+          <App />
+        </QueryClientProvider>
+      </QueryParamProvider>
     </BrowserRouter>
   </StrictMode>
 );

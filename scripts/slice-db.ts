@@ -23,8 +23,8 @@ const updater = _.throttle(() => barStack.update(), 100);
 
 let current = '';
 
-await createTocSlice();
 await sliceDb();
+await createTocSlice();
 
 async function createTocSlice() {
   const tocSqlite = new Database(`${root}/public/db/db.sqlite`);
@@ -51,20 +51,14 @@ async function sliceDb() {
   );
 
   const contents = db
-    .select({
-      tocId: schema.content.tocId,
-      count: sql`COUNT(*)`.as('count'), // Use the COUNT function
-    })
+    .select({ tocId: schema.content.tocId, count: sql`COUNT(*)` })
     .from(schema.content)
     .groupBy(schema.content.tocId)
     .all()
     .map((row) => ({ ...row, name: tocs[row.tocId!] }));
 
   const links = db
-    .select({
-      tocId: schema.links.fromId,
-      count: sql`COUNT(*)`.as('count'), // Use the COUNT function
-    })
+    .select({ tocId: schema.links.fromId, count: sql`COUNT(*)` })
     .from(schema.links)
     .groupBy(schema.links.fromId)
     .all()

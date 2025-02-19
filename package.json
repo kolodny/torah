@@ -39,6 +39,7 @@
     "tsx": "^4.19.2",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.22.0",
+    "use-query-params": "^2.2.1",
     "vite": "^6.1.0",
     "zx": "^8.3.2"
   }
