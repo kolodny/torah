@@ -70,9 +70,11 @@ export const getOrm = async () => {
         );
         await db.run(
           `
+            BEGIN TRANSACTION;
             ATTACH DATABASE '${path}' AS merge;
             INSERT OR IGNORE INTO content SELECT * FROM merge.content;
             INSERT OR IGNORE INTO links SELECT * FROM merge.links;
+            COMMIT;
             DETACH DATABASE merge;
           `
         );

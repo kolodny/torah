@@ -3,7 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { App } from './app';
 
 import { getOrm } from './orm/index';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
 import { QueryParamProvider } from 'use-query-params';
 import { ReactRouterAdapter } from './query-param-adapter';
@@ -29,7 +33,28 @@ console.log('toc', await db.select().from(schema.toc).limit(3));
 console.log('content', await db.select().from(schema.content).limit(3));
 console.log('links', await db.select().from(schema.links).limit(3));
 
-const queryClient = new QueryClient();
+const queryCache = new QueryCache();
+queryCache.subscribe((event) => {
+  if (event.type === 'added') {
+    console.time(`Query ${event.query.queryKey}`);
+  } else if (
+    event.type === 'observerResultsUpdated' &&
+    event.query.state.status !== 'pending'
+  ) {
+    console.timeEnd(`Query ${event.query.queryKey}`);
+  }
+});
+const queryClient = new QueryClient({
+  queryCache,
+  defaultOptions: {
+    queries: {
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: 0,
+    },
+  },
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

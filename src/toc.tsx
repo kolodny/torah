@@ -1,10 +1,21 @@
 import React from 'react';
 import { db, schema, worker } from './main';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { eq, or, sql } from 'drizzle-orm';
+import { and, eq, or, sql } from 'drizzle-orm';
 import { NumberParam, useQueryParams } from 'use-query-params';
+import _ from 'lodash';
 
-type Toc = typeof schema.toc.$inferSelect;
+type Toc = Pick<
+  typeof schema.toc.$inferSelect,
+  | 'id'
+  | 'hasContent'
+  | 'titleHebrew'
+  | 'titleEnglish'
+  | 'fileSize'
+  | 'contentEntries'
+  | 'categoryHebrew'
+  | 'parentId'
+>;
 type Node = Omit<Partial<Toc>, 'id'> & {
   id: number;
   children: Node[];
@@ -41,14 +52,11 @@ const formatBytes = (bytes: number) =>
 
 const Links: React.FunctionComponent<{
   links: Array<{
-    otherLine: number;
-    other: Node;
     id: number;
-    fromId: number;
-    fromLine: number;
-    toId: number;
-    toLine: number;
-    connectionType: string | null;
+    other: Node;
+    line: number;
+    otherId: number;
+    otherLine: number;
   }>;
 }> = ({ links }) => {
   const [expanded, setExpanded] = React.useState(false);
@@ -88,7 +96,19 @@ export const Toc: React.FC = () => {
   const toc = useQuery({
     queryKey: ['toc'],
     queryFn: async () => {
-      const tocs = await db.select().from(schema.toc).all();
+      const tocs = await db.query.toc.findMany({
+        columns: {
+          id: true,
+          hasContent: true,
+          titleHebrew: true,
+          titleEnglish: true,
+          fileSize: true,
+          contentEntries: true,
+          categoryHebrew: true,
+          parentId: true,
+        },
+      });
+
       return buildHierarchy(tocs);
     },
   });
@@ -102,13 +122,46 @@ export const Toc: React.FC = () => {
   const links = useQuery({
     queryKey: ['links', current],
     queryFn: async () => {
-      return db
-        .select()
-        .from(schema.links)
-        .where(
-          or(eq(schema.links.fromId, current), eq(schema.links.toId, current))
-        )
-        .all();
+      const links = await db.query.links.findMany({
+        columns: {
+          id: true,
+          fromId: true,
+          fromLine: true,
+          toId: true,
+          toLine: true,
+          connectionType: true,
+        },
+        where: or(
+          and(
+            // gte(schema.links.fromLine, 3),
+            // lte(schema.links.fromLine, 33),
+            eq(schema.links.fromId, current)
+          ),
+          and(
+            // gte(schema.links.toLine, 3),
+            // lte(schema.links.toLine, 33),
+            eq(schema.links.toId, current)
+          )
+        ),
+        // limit: 100,
+      });
+      const byLine = _.groupBy(links, (link) =>
+        link.fromId === current ? link.fromLine : link.toLine
+      );
+      return _.mapValues(byLine, (links) => {
+        return links.map((link) => {
+          const isFrom = link.fromId === current;
+          const line = isFrom ? link.fromLine : link.toLine;
+          const otherLine = isFrom ? link.toLine : link.fromLine;
+          const otherId = isFrom ? link.toId : link.fromId;
+          return {
+            id: link.id,
+            line,
+            otherId,
+            otherLine,
+          };
+        });
+      });
     },
   });
 
@@ -245,7 +298,15 @@ export const Toc: React.FC = () => {
 
   return (
     <div style={{ direction: 'rtl' }}>
-      <h2>
+      <h2
+        style={{
+          position: 'sticky',
+          top: 0,
+          background: 'white',
+          margin: 0,
+          padding: 10,
+        }}
+      >
         {breadcrumbs.map((id, index) => {
           const missingBytes = calculateMissingBytes(data[id]);
           const missing = !missingBytes
@@ -272,6 +333,7 @@ export const Toc: React.FC = () => {
       {content.isLoading ? <div>Loading content...</div> : null}
       {download}
 
+      {console.time('table') as never}
       {!!content.data?.length && (
         <div>
           <table>
@@ -279,7 +341,7 @@ export const Toc: React.FC = () => {
               <tr
                 style={{
                   position: 'sticky',
-                  top: 0,
+                  top: 48,
                   background: 'white',
                 }}
               >
@@ -291,20 +353,11 @@ export const Toc: React.FC = () => {
             </thead>
             <tbody>
               {content.data?.map((data) => {
-                const linksForLine = [
-                  ...new Set(
-                    links.data?.filter((link) => link.fromLine === data.line)
-                  ),
-                ]
-                  .map((link) => {
-                    const isFrom = link.fromId === current;
-                    const otherLine = isFrom ? link.toLine : link.fromLine;
-                    const other = isFrom ? link.toId : link.fromId;
-
-                    return { ...link, otherLine, other: toc.data[other] };
-                  })
-                  .filter((l) => l.other.hasContent);
                 const thisItem = line === data.line;
+                const linksWithOther =
+                  links.data?.[data.line ?? 0]?.map((link) => {
+                    return { ...link, other: toc.data[link.otherId] };
+                  }) ?? [];
                 return (
                   <tr key={data.id}>
                     <td>{data.sectionPath?.join(' > ')}</td>
@@ -328,12 +381,13 @@ export const Toc: React.FC = () => {
                       {links.isLoading ? (
                         'Loading links...'
                       ) : (
-                        <Links links={linksForLine} />
+                        <Links links={linksWithOther} />
                       )}
                     </td>
                   </tr>
                 );
               })}
+              {console.timeEnd('table') as never}
             </tbody>
           </table>
         </div>

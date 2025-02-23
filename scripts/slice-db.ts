@@ -13,6 +13,7 @@ import { MultiBar } from 'cli-progress';
 import { statSync } from 'node:fs';
 
 const root = resolve(`${import.meta.dirname}/../`);
+await $`rm -rf ${root}/public/db`.catch(() => {});
 await $`mkdir ${root}/public/db`.catch(() => {});
 
 const sqlite = new Database(`${root}/db/master.sqlite`);

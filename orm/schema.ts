@@ -8,6 +8,11 @@ export const toc = t.sqliteTable('toc', {
   fileSize: t.integer('file_size'),
   titleEnglish: t.text('title_english'),
   titleHebrew: t.text('title_hebrew'),
+  author: t.text('author'),
+  publishedDate: t.text('published_date'),
+  publishedPlace: t.text('published_place'),
+  composedDate: t.text('composed_date'),
+  composedPlace: t.text('composed_place'),
   completeEnglish: t.integer('complete_english', { mode: 'boolean' }),
   completeHebrew: t.integer('complete_hebrew', { mode: 'boolean' }),
   descriptionEnglish: t.text('description_english'),
@@ -60,8 +65,35 @@ export const links = t.sqliteTable(
     t.index('from_id_line_idx').on(table.fromId, table.fromLine),
     t.index('to_id_idx').on(table.toId),
     t.index('to_id_line_idx').on(table.toId, table.toLine),
+    t
+      .unique('unique_link')
+      .on(table.fromId, table.fromLine, table.toId, table.toLine),
   ]
 );
+
+export const sortLinkRow = (row: typeof links.$inferInsert) => {
+  const [fromId, fromLine, toId, toLine] = (() => {
+    const { fromId, fromLine, toId, toLine } = row;
+    if (fromId === toId) {
+      return fromLine < toLine
+        ? [fromId, fromLine, toId, toLine]
+        : [toId, toLine, fromId, fromLine];
+    }
+    return fromId < toId
+      ? [fromId, fromLine, toId, toLine]
+      : [toId, toLine, fromId, fromLine];
+  })();
+
+  const sorted = {
+    fromId,
+    fromLine,
+    toId,
+    toLine,
+    connectionType: row.connectionType,
+  };
+
+  return sorted;
+};
 
 export const tocRelations = relations(toc, ({ many }) => ({
   contents: many(content),

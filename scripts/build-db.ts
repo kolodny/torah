@@ -10,8 +10,11 @@ import Database from 'better-sqlite3';
 
 const root = resolve(`${import.meta.dirname}/../`);
 const tocPath = `${root}/otzaria-library/books lists/ספריא/table_of_contents.json`;
+const metaPath = `${root}/otzaria-library/metadata.json`;
 
 await $`mkdir ${root}/db`.catch(() => {});
+await $`rm -rf ${root}/drizzle`.catch(() => {});
+await $`rm -rf ${root}/db/master.sqlite`.catch(() => {});
 
 import type { Toc, Content } from '../toc.ts';
 import { MultiBar } from 'cli-progress';
@@ -61,7 +64,20 @@ function reverseForTerminal(str: string) {
 }
 
 async function buildToc() {
+  type Metadata = Array<{
+    title: string;
+    author: string;
+    pubDate: string;
+    pubPlace: string;
+    compPlace: string;
+    compDate: string;
+  }>;
+
   const toc = JSON.parse(readFileSync(tocPath, 'utf8')) as Toc;
+  const metadata = _.keyBy(
+    JSON.parse(readFileSync(metaPath, 'utf8')) as Metadata,
+    'title'
+  );
 
   const bar = barStack.create(toc.length, 0);
   bar.update({ message: 'Building toc' });
@@ -73,13 +89,20 @@ async function buildToc() {
   );
 
   const process = (content: Content, parentId: number | null = null) => {
+    const title = 'heTitle' in content ? content.heTitle : null;
+    const meta = metadata[title!];
     const value = {
       parentId,
       descriptionEnglish: 'enDesc' in content ? content.enDesc : null,
       descriptionHebrew: 'heDesc' in content ? content.heDesc : null,
       descriptionShortEnglish: content.enShortDesc,
       titleEnglish: 'title' in content ? content.title : null,
-      titleHebrew: 'heTitle' in content ? content.heTitle : null,
+      titleHebrew: title,
+      author: meta?.author,
+      publishedDate: meta?.pubDate,
+      publishedPlace: meta?.pubPlace,
+      composedDate: meta?.compDate,
+      composedPlace: meta?.compPlace,
       descriptionShortHebrew: content.heShortDesc,
       categories: 'categories' in content ? content.categories : null,
       mainOrder: 'order' in content ? content.order : null,
@@ -225,7 +248,8 @@ async function buildLinks() {
   for (const size of sizes) total += size;
 
   const { insert, flush } = makeInsert<typeof schema.links.$inferInsert>(
-    (values) => db.insert(schema.links).values(values).run()
+    (values) =>
+      db.insert(schema.links).values(values).onConflictDoNothing().run()
   );
 
   const bar = barStack.create(total, 0, null, {
@@ -264,13 +288,15 @@ async function buildLinks() {
       const fromId = baseToId[baseFile];
 
       if (toId && fromId) {
-        insert({
-          fromId,
-          fromLine: link.line_index_1,
-          toId,
-          toLine: link.line_index_2,
-          connectionType: type,
-        });
+        insert(
+          schema.sortLinkRow({
+            fromId,
+            fromLine: link.line_index_1,
+            toId,
+            toLine: link.line_index_2,
+            connectionType: type,
+          })
+        );
       } else {
         if (!toId) {
           log(`Could not find id for toId: ${link.heRef_2}\n`);
