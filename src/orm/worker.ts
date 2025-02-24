@@ -9,6 +9,17 @@ const sqlite3 = await sqlite3InitModule({
 const opfs = 'opfs' in sqlite3;
 const sqliteVersion = sqlite3.version.libVersion;
 
+// let index = 0;
+// if (opfs) {
+//   console.log(index++);
+//   debugger;
+
+//   const pool = await sqlite3.installOpfsSAHPoolVfs({});
+//   console.log(pool);
+//   const thing = new pool.OpfsSAHPoolDb('thing.db');
+//   console.log(thing.selectValues(`SELECT 1`));
+// }
+
 const Db = sqlite3.oo1[opfs ? 'OpfsDb' : 'DB'];
 
 let db: Database | undefined = undefined;

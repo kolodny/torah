@@ -200,8 +200,9 @@ async function buildBooks() {
           const sectionPath = path.filter(Boolean);
           const pathMatcher = /^\((?<path>[\u0590-\u05FF]+)\)\s*/;
           const match = line.match(pathMatcher)?.groups;
+          let sectionName: string | null = null;
           if (match?.path) {
-            sectionPath.push(`פסוק ${match.path}`);
+            sectionName = `פסוק ${match.path}`;
             line = line.replace(pathMatcher, '');
           }
           insert({
@@ -209,6 +210,7 @@ async function buildBooks() {
             text: line,
             line: +index + 1, // 1-indexed
             sectionPath,
+            sectionName,
           });
         }
       }

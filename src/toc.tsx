@@ -1,43 +1,9 @@
 import React from 'react';
-import { db, schema, worker } from './main';
+import { worker } from './main';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { and, eq, or, sql } from 'drizzle-orm';
 import { NumberParam, useQueryParams } from 'use-query-params';
 import _ from 'lodash';
-
-type Toc = Pick<
-  typeof schema.toc.$inferSelect,
-  | 'id'
-  | 'hasContent'
-  | 'titleHebrew'
-  | 'titleEnglish'
-  | 'fileSize'
-  | 'contentEntries'
-  | 'categoryHebrew'
-  | 'parentId'
->;
-type Node = Omit<Partial<Toc>, 'id'> & {
-  id: number;
-  children: Node[];
-  parent?: Node | undefined;
-};
-
-const buildHierarchy = (data: Toc[]) => {
-  const root: Node = { id: 0, children: [] };
-
-  const nodes: Record<string, Node> = { 0: root };
-
-  for (const topic of data) {
-    nodes[topic.id] = { ...topic, children: [] };
-  }
-  for (const node of Object.values(nodes)) {
-    const parent = node.id !== 0 ? nodes[node.parentId ?? 0] : undefined;
-    parent?.children.push(node);
-    node.parent = parent;
-  }
-
-  return nodes;
-};
+import { getContent, getGrouped, getLinks, getToc, Node } from './queries';
 
 const formatBytes = (bytes: number) =>
   new Intl.NumberFormat('en', {
@@ -95,22 +61,7 @@ const Links: React.FunctionComponent<{
 export const Toc: React.FC = () => {
   const toc = useQuery({
     queryKey: ['toc'],
-    queryFn: async () => {
-      const tocs = await db.query.toc.findMany({
-        columns: {
-          id: true,
-          hasContent: true,
-          titleHebrew: true,
-          titleEnglish: true,
-          fileSize: true,
-          contentEntries: true,
-          categoryHebrew: true,
-          parentId: true,
-        },
-      });
-
-      return buildHierarchy(tocs);
-    },
+    queryFn: getToc,
   });
   const [params, updateParams] = useQueryParams({
     line: NumberParam,
@@ -119,80 +70,55 @@ export const Toc: React.FC = () => {
   const line = params.line;
   const current = params.current ?? 0;
 
-  const links = useQuery({
-    queryKey: ['links', current],
-    queryFn: async () => {
-      const links = await db.query.links.findMany({
-        columns: {
-          id: true,
-          fromId: true,
-          fromLine: true,
-          toId: true,
-          toLine: true,
-          connectionType: true,
-        },
-        where: or(
-          and(
-            // gte(schema.links.fromLine, 3),
-            // lte(schema.links.fromLine, 33),
-            eq(schema.links.fromId, current)
-          ),
-          and(
-            // gte(schema.links.toLine, 3),
-            // lte(schema.links.toLine, 33),
-            eq(schema.links.toId, current)
-          )
-        ),
-        // limit: 100,
-      });
-      const byLine = _.groupBy(links, (link) =>
-        link.fromId === current ? link.fromLine : link.toLine
-      );
-      return _.mapValues(byLine, (links) => {
-        return links.map((link) => {
-          const isFrom = link.fromId === current;
-          const line = isFrom ? link.fromLine : link.toLine;
-          const otherLine = isFrom ? link.toLine : link.fromLine;
-          const otherId = isFrom ? link.toId : link.fromId;
-          return {
-            id: link.id,
-            line,
-            otherId,
-            otherLine,
-          };
-        });
-      });
-    },
-  });
-
   const client = useQueryClient();
   const content = useQuery({
     queryKey: ['content', current],
-    queryFn: async () => {
-      return db
-        .select()
-        .from(schema.content)
-        .where(eq(schema.content.tocId, current))
-        .all();
-    },
+    queryFn: async () => getContent(current),
+  });
+
+  // const [section, setSection] = React.useState<string | undefined>(undefined);
+  // const sections = React.useMemo(() => {
+  //   if (!content.data) return undefined;
+  //   const bySection = _.groupBy(content.data, (data) =>
+  //     data.sectionPath?.join(' > ')
+  //   );
+
+  //   return bySection;
+  // }, [content.data]);
+
+  // console.log(sections);
+
+  // React.useEffect(() => {
+  //   if (!section && sections) {
+  //     const firstSection = Object.entries(sections).find(
+  //       ([, value]) => value.length > 1
+  //     )?.[0];
+
+  //     if (firstSection) setSection(firstSection);
+  //     // setSection(firstSection);
+  //   }
+  // }, [section, sections]);
+
+  // const thisSection = sections
+  //   ? section && section in sections
+  //     ? sections[section]
+  //     : Object.values(sections)[0]
+  //   : undefined;
+
+  // const minLine = Math.min(...(thisSection?.map((l) => l.line!) ?? []));
+  // const maxLine = Math.max(...(thisSection?.map((l) => l.line!) ?? []));
+  // console.log({ thisSection, minLine, maxLine });
+
+  const links = useQuery({
+    // queryKey: ['links', current, minLine, maxLine],
+    // queryFn: async () => await getLinks(current, minLine, maxLine),
+    queryKey: ['links', current],
+    queryFn: async () => await getLinks(current),
   });
 
   const grouped = useQuery({
     queryKey: ['content', 'grouped'],
-    queryFn: async () => {
-      return Object.fromEntries(
-        (
-          await db
-            .select({
-              id: schema.content.tocId,
-              count: sql<number>`COUNT(*)`,
-            })
-            .from(schema.content)
-            .groupBy(schema.content.tocId)
-            .all()
-        ).map(({ id, count }) => [id, count] as const)
-      );
-    },
+    queryFn: getGrouped,
   });
 
   const data = toc.data;
@@ -225,6 +151,8 @@ export const Toc: React.FC = () => {
       }
     }
   }, [client, content.data?.length, current, data]);
+
+  const [downloading, setDownloading] = React.useState(false);
 
   if (toc.isLoading) return <div>Loading...</div>;
   if (toc.error) return <div>Error: {toc.error.message}</div>;
@@ -309,9 +237,45 @@ export const Toc: React.FC = () => {
       >
         {breadcrumbs.map((id, index) => {
           const missingBytes = calculateMissingBytes(data[id]);
-          const missing = !missingBytes
-            ? ''
-            : `(Missing ${formatBytes(missingBytes)})`;
+          const missing = !missingBytes ? (
+            ''
+          ) : (
+            <>
+              <button
+                disabled={downloading}
+                onClick={async (e) => {
+                  setDownloading(true);
+                  console.time('download');
+                  e.preventDefault();
+                  const recur = async (node: Node) => {
+                    const localNode = grouped.data?.[node.id];
+                    if (!localNode && toc.data?.[node.id]?.hasContent) {
+                      await worker.merge(node.id, (info) => {
+                        const percent = Math.floor(
+                          (info.processed / info.total) * 100
+                        );
+                        console.log(
+                          `Downloading "${node.titleEnglish}" ${percent}% done`
+                        );
+                      });
+                    }
+                    for (const child of node.children) {
+                      await recur(child);
+                    }
+                    client.invalidateQueries({
+                      queryKey: ['content', 'grouped'],
+                    });
+                  };
+                  await recur(data[id]);
+                  client.invalidateQueries({ queryKey: ['links'] });
+                  console.timeEnd('download');
+                  setDownloading(false);
+                }}
+              >
+                Download {formatBytes(missingBytes)} missing
+              </button>
+            </>
+          );
           return (
             <span key={id}>
               {index ? ' > ' : null}
@@ -322,8 +286,9 @@ export const Toc: React.FC = () => {
                   updateParams({ current: id, line: null });
                 }}
               >
-                {id === 0 ? 'Root' : title(data[id])} {missing}
+                {id === 0 ? 'Root' : title(data[id])}
               </a>
+              {missing}
             </span>
           );
         })}
@@ -336,6 +301,7 @@ export const Toc: React.FC = () => {
       {console.time('table') as never}
       {!!content.data?.length && (
         <div>
+          {/* Section {section} */}
           <table>
             <thead>
               <tr
@@ -352,15 +318,18 @@ export const Toc: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {content.data?.map((data) => {
+              {content.data.map((data) => {
                 const thisItem = line === data.line;
                 const linksWithOther =
                   links.data?.[data.line ?? 0]?.map((link) => {
                     return { ...link, other: toc.data[link.otherId] };
                   }) ?? [];
+                const sectionPath = [...(data.sectionPath ?? [])];
+                if (data.sectionName) sectionPath?.push(data.sectionName);
+
                 return (
                   <tr key={data.id}>
-                    <td>{data.sectionPath?.join(' > ')}</td>
+                    <td>{sectionPath?.join(' > ')}</td>
                     <td>{data.line}</td>
                     <td>
                       <div

@@ -41,7 +41,8 @@ export const content = t.sqliteTable(
     id: t.integer('id').primaryKey(),
     tocId: t.integer('toc_id').notNull(),
     sectionPath: t.text('section_path', { mode: 'json' }).$type<string[]>(),
-    line: t.integer('line'),
+    sectionName: t.text('section_name'),
+    line: t.integer('line').notNull(),
     text: t.text('text'),
   },
   (table) => [

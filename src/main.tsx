@@ -29,10 +29,6 @@ windowAny.go = (id: number) => {
   });
 };
 
-console.log('toc', await db.select().from(schema.toc).limit(3));
-console.log('content', await db.select().from(schema.content).limit(3));
-console.log('links', await db.select().from(schema.links).limit(3));
-
 const queryCache = new QueryCache();
 queryCache.subscribe((event) => {
   if (event.type === 'added') {
