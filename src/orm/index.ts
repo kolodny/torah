@@ -3,12 +3,14 @@ import { drizzle } from 'drizzle-orm/sqlite-proxy';
 
 import * as schema from '../../orm/schema';
 
-import Worker from './worker?worker';
+// import Worker from './worker?worker';
 import { Api, UploadInfo, Ready } from './worker';
 import { eq } from 'drizzle-orm';
 
 const getWorker = async () => {
-  const worker = new Worker();
+  const worker = new Worker(new URL('./worker.ts', import.meta.url), {
+    type: 'module',
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { type, ...info } = await new Promise<Ready>((resolve) => {
@@ -19,12 +21,15 @@ const getWorker = async () => {
       }
     };
   });
-  return { worker: wrap<Api>(worker), info };
+  const wrapped = wrap<Api>(worker);
+  type Picked = Pick<typeof wrapped, keyof typeof wrapped & string>;
+  const picked = wrapped as Picked;
+
+  return { worker: picked, info };
 };
+const { worker, info } = await getWorker();
 
 const getSqliteProxy = async (file: string) => {
-  const { worker, info } = await getWorker();
-
   await worker.open(file);
 
   type DrizzleHandler = Parameters<typeof drizzle>[0];
@@ -34,28 +39,25 @@ const getSqliteProxy = async (file: string) => {
     return { rows };
   };
 
-  type Picked = Pick<typeof worker, keyof typeof worker & string>;
-
-  return { sqliteProxy, worker: worker as Picked, info };
+  return sqliteProxy;
 };
 
 export const getOrm = async () => {
   const path = '/db.sqlite';
-  const { worker: linked } = await getWorker();
-  if (!(await linked.exists(path))) {
-    await linked.upload(`/db${path}`, path);
+  if (!(await worker.exists(path))) {
+    await worker.upload(`/torah-app/db${path}`, path);
   }
-  const { sqliteProxy, worker, info } = await getSqliteProxy('/db.sqlite');
+  const sqliteProxy = await getSqliteProxy('/db.sqlite');
   const db = drizzle<typeof schema>(sqliteProxy, { schema });
 
   type Fn = (...args: never[]) => unknown;
 
   const workerApi = {
-    ls: worker.ls,
     open: worker.open,
     close: worker.close,
     exec: worker.exec,
     exists: worker.exists,
+    wipe: worker.wipe,
     remove: worker.remove,
     merge: async (id: number, callback?: (info: UploadInfo) => void) => {
       const found = await db.query.content.findFirst({
@@ -64,7 +66,7 @@ export const getOrm = async () => {
       if (!found) {
         const path = `/db/toc_${id}.sqlite`;
         await worker.upload(
-          path,
+          `/torah-app${path}`,
           path,
           callback ? proxy(callback as never) : undefined
         );

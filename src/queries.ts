@@ -1,8 +1,6 @@
 import { and, eq, gte, lte, or, sql } from 'drizzle-orm';
-import { getOrm } from './orm';
 import _ from 'lodash';
-
-const { db, schema } = await getOrm();
+import { db, schema } from './main';
 
 type Toc = Pick<
   typeof schema.toc.$inferSelect,

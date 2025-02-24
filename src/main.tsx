@@ -28,6 +28,7 @@ windowAny.go = (id: number) => {
     console.log(info);
   });
 };
+windowAny.wipe = () => worker.wipe();
 
 const queryCache = new QueryCache();
 queryCache.subscribe((event) => {
