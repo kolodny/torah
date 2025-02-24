@@ -10,6 +10,13 @@ export default defineConfig({
     //   'Cross-Origin-Embedder-Policy': 'require-corp',
     // },
   },
+  base: '/torah-app',
+  build: {
+    target: 'esnext', // Ensure modern syntax support
+  },
+  worker: {
+    format: 'es', // Specify the format for workers
+  },
   optimizeDeps: {
     exclude: ['@sqlite.org/sqlite-wasm'],
   },

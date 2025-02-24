@@ -59,7 +59,8 @@ function makeInsert<Insert>(cb: (values: Insert[]) => void) {
   return { insert, flush };
 }
 
-function reverseForTerminal(str: string) {
+function terminalString(str: string) {
+  if (process.env.GITHUB_ACTIONS) return str;
   return str.split('').reverse().join('');
 }
 
@@ -179,8 +180,8 @@ async function buildBooks() {
     baseToId[title] = id;
 
     if (!id) {
-      const r1 = reverseForTerminal(actualTitle ?? '').trim();
-      const r2 = reverseForTerminal(title).trim();
+      const r1 = terminalString(actualTitle ?? '').trim();
+      const r2 = terminalString(title).trim();
       if (r1 === r2) {
         barStack.log(`Could not find id for title: ${r1}. title: ${title}\n`);
       } else {
@@ -279,7 +280,7 @@ async function buildLinks() {
     const data: Link[] = JSON.parse(readFileSync(file, 'utf-8'));
     const baseFile = basename(file, '_links.json');
 
-    const base = reverseForTerminal(baseFile);
+    const base = terminalString(baseFile);
 
     subBar.start(data.length, 0, { message: `Processing links for ${base}` });
     for (const link of data) {

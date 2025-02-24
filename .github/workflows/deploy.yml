@@ -1,0 +1,27 @@
+name: Deploy Static Site
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Kickoff app build
+        env:
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          git clone https://github.com/kolodny/torah-app.git
+          git rev-parse --short HEAD > torah-app/commit.txt
+          cd torah-app
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Trigger Build"
+          git push https://x-access-token:${PERSONAL_ACCESS_TOKEN}@github.com/kolodny/torah-app.git HEAD
