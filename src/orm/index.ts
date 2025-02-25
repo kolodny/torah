@@ -44,6 +44,11 @@ const getSqliteProxy = async (file: string) => {
 
 export const getOrm = async () => {
   const path = '/db.sqlite';
+  const badFiles = (await worker.ls()).filter((f) => f !== '/db.sqlite');
+  for (const badFile of badFiles) {
+    console.log(`Removing bad file ${badFile}`);
+    await worker.remove(badFile);
+  }
   if (!(await worker.exists(path))) {
     await worker.upload(`/torah-app/db${path}`, path);
   }
@@ -57,6 +62,7 @@ export const getOrm = async () => {
     close: worker.close,
     exec: worker.exec,
     exists: worker.exists,
+    ls: worker.ls,
     wipe: worker.wipe,
     remove: worker.remove,
     merge: async (id: number, callback?: (info: UploadInfo) => void) => {

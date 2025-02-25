@@ -1,9 +1,14 @@
 import React from 'react';
 import { worker } from './main';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { NumberParam, useQueryParams } from 'use-query-params';
-import _ from 'lodash';
+import {
+  NumberParam,
+  useQueryParam,
+  useQueryParams,
+  withDefault,
+} from 'use-query-params';
 import { getContent, getGrouped, getLinks, getToc, Node } from './queries';
+import _ from 'lodash';
 
 const formatBytes = (bytes: number) =>
   new Intl.NumberFormat('en', {
@@ -76,45 +81,43 @@ export const Toc: React.FC = () => {
     queryFn: async () => getContent(current),
   });
 
-  // const [section, setSection] = React.useState<string | undefined>(undefined);
-  // const sections = React.useMemo(() => {
-  //   if (!content.data) return undefined;
-  //   const bySection = _.groupBy(content.data, (data) =>
-  //     data.sectionPath?.join(' > ')
-  //   );
-
-  //   return bySection;
-  // }, [content.data]);
-
-  // console.log(sections);
-
-  // React.useEffect(() => {
-  //   if (!section && sections) {
-  //     const firstSection = Object.entries(sections).find(
-  //       ([, value]) => value.length > 1
-  //     )?.[0];
-
-  //     if (firstSection) setSection(firstSection);
-  //     // setSection(firstSection);
-  //   }
-  // }, [section, sections]);
-
-  // const thisSection = sections
-  //   ? section && section in sections
-  //     ? sections[section]
-  //     : Object.values(sections)[0]
-  //   : undefined;
-
-  // const minLine = Math.min(...(thisSection?.map((l) => l.line!) ?? []));
-  // const maxLine = Math.max(...(thisSection?.map((l) => l.line!) ?? []));
-  // console.log({ thisSection, minLine, maxLine });
-
   const links = useQuery({
     // queryKey: ['links', current, minLine, maxLine],
     // queryFn: async () => await getLinks(current, minLine, maxLine),
     queryKey: ['links', current],
     queryFn: async () => await getLinks(current),
   });
+
+  const sections = React.useMemo(() => {
+    if (!content.data) return undefined;
+    const bySection = _.groupBy(content.data, (data) =>
+      data.sectionPath?.join(' > ')
+    );
+    return Object.entries(bySection).map(([sectionName, contents]) => ({
+      sectionName,
+      contents,
+    }));
+  }, [content.data]);
+
+  const [sectionIndex, setSectionIndex] = useQueryParam(
+    'section',
+    withDefault(NumberParam, 0),
+    { removeDefaultsFromUrl: true }
+  );
+  React.useEffect(() => {
+    if (content.data) {
+      setSectionIndex(0);
+    }
+  }, [content.data, setSectionIndex]);
+
+  const thisSection = React.useMemo(() => {
+    if (sectionIndex == undefined || !content.data) return undefined;
+    return sections?.[sectionIndex];
+  }, [sectionIndex, content.data, sections]);
+
+  // const minLine = Math.min(...(thisSection?.map((l) => l.line!) ?? []));
+  // const maxLine = Math.max(...(thisSection?.map((l) => l.line!) ?? []));
+  // console.log({ thisSection, minLine, maxLine });
 
   const grouped = useQuery({
     queryKey: ['content', 'grouped'],
@@ -224,8 +227,46 @@ export const Toc: React.FC = () => {
     );
   }
 
+  const sectionPicker = () => (
+    <div style={{ display: 'flex', gap: 8 }}>
+      <button
+        disabled={!sectionIndex}
+        onClick={() => setSectionIndex(sectionIndex! - 1)}
+      >
+        Previous
+      </button>
+
+      <select
+        value={`${sectionIndex}`}
+        onChange={(e) => setSectionIndex(+e.target.value)}
+      >
+        {sections?.map((section, index) => (
+          <option key={section.sectionName} value={index}>
+            {section.sectionName}
+          </option>
+        ))}
+      </select>
+
+      <button
+        disabled={sectionIndex! >= sections!.length - 1}
+        onClick={() => setSectionIndex(sectionIndex! + 1)}
+      >
+        Next
+      </button>
+    </div>
+  );
+
   return (
     <div style={{ direction: 'rtl' }}>
+      <button
+        onClick={async () => {
+          if (!confirm('Are you sure?')) return;
+          await worker.wipe();
+          location.reload();
+        }}
+      >
+        Wipe out DB
+      </button>
       <h2
         style={{
           position: 'sticky',
@@ -299,9 +340,9 @@ export const Toc: React.FC = () => {
       {download}
 
       {console.time('table') as never}
-      {!!content.data?.length && (
+      {!!thisSection?.contents?.length && (
         <div>
-          {/* Section {section} */}
+          {sectionPicker()}
           <table>
             <thead>
               <tr
@@ -318,7 +359,7 @@ export const Toc: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {content.data.map((data) => {
+              {thisSection.contents.map((data) => {
                 const thisItem = line === data.line;
                 const linksWithOther =
                   links.data?.[data.line ?? 0]?.map((link) => {
@@ -359,6 +400,7 @@ export const Toc: React.FC = () => {
               {console.timeEnd('table') as never}
             </tbody>
           </table>
+          {sectionPicker()}
         </div>
       )}
     </div>

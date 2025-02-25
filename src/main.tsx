@@ -17,8 +17,6 @@ const { db, schema, worker, info } = await getOrm();
 export { db, schema, worker };
 
 console.log('Running SQLite3 version', info.sqliteVersion);
-if (info.opfs) console.log(`OPFS is available, using persisted databases`);
-else console.log(`OPFS is not available, using transient databases`);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const windowAny = window as any;
@@ -29,6 +27,7 @@ windowAny.go = (id: number) => {
   });
 };
 windowAny.wipe = () => worker.wipe();
+windowAny.list = () => worker.ls();
 
 const queryCache = new QueryCache();
 queryCache.subscribe((event) => {

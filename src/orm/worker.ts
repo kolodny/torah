@@ -46,6 +46,7 @@ const api = {
     return method === 'get' ? rows[0] : rows;
   },
   exists: async (path: string) => pool.getFileNames().includes(path),
+  ls: () => pool.getFileNames(),
   wipe: async () => {
     db?.close();
     db = undefined;
