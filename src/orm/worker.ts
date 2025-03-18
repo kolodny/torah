@@ -1,15 +1,30 @@
 import sqlite3InitModule, { Database, SqlValue } from '@sqlite.org/sqlite-wasm';
 import { expose } from 'comlink';
 
+if (typeof window !== 'undefined') {
+  throw new Error('This file should only be run in a web worker');
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(self as any).sqlite3ApiConfig = {
+  warn: (...args: unknown[]) => {
+    if (!`${args[0]}`.includes('Ignoring inability to install OPFS')) {
+      console.warn(...args);
+    }
+  },
+};
+
 const sqlite3 = await sqlite3InitModule({
   print: console.log,
   printErr: console.error,
 });
 
-const opfs = 'opfs' in sqlite3;
 const sqliteVersion = sqlite3.version.libVersion;
 
-const pool = await sqlite3.installOpfsSAHPoolVfs({});
+const pool = await sqlite3.installOpfsSAHPoolVfs({}).catch((error) => {
+  postMessage({ type: 'install-error' });
+  throw error;
+});
 
 let db: Database | undefined = undefined;
 
@@ -26,6 +41,26 @@ const api = {
   close: () => {
     db!.close();
     db = undefined;
+  },
+  readonlyExec: (sql: string, params: SqlValue[], method: string) => {
+    const pointer = db?.pointer;
+    if (!pointer) throw new Error('No database open');
+    const { SQLITE_READ, SQLITE_SELECT, SQLITE_OK, SQLITE_DENY } = sqlite3.capi;
+    sqlite3.capi.sqlite3_set_authorizer(
+      pointer,
+      (_, code) => {
+        const ok = code === SQLITE_READ || code === SQLITE_SELECT;
+        if (ok) return SQLITE_OK;
+
+        return SQLITE_DENY;
+      },
+      0
+    );
+    try {
+      return api.exec(sql, params, method);
+    } finally {
+      sqlite3.capi.sqlite3_set_authorizer(pointer, () => SQLITE_OK, 0);
+    }
   },
   exec: (sql: string, params: SqlValue[], method: string) => {
     if (!db) throw new Error('No database open');
@@ -78,7 +113,7 @@ const api = {
 
 expose(api);
 
-const ready = { type: 'ready', sqliteVersion, opfs };
+const ready = { type: 'ready', sqliteVersion };
 export type Ready = typeof ready;
 postMessage(ready);
 

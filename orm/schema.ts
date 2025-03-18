@@ -6,9 +6,11 @@ export const toc = t.sqliteTable('toc', {
   parentId: t.integer('parent_id'),
   contentEntries: t.integer('content_entries'),
   fileSize: t.integer('file_size'),
+  sectionNames: t.text('section_names', { mode: 'json' }).$type<string[]>(),
   titleEnglish: t.text('title_english'),
   titleHebrew: t.text('title_hebrew'),
-  author: t.text('author'),
+  authorEnglish: t.text('author_english'),
+  authorHebrew: t.text('author_hebrew'),
   publishedDate: t.text('published_date'),
   publishedPlace: t.text('published_place'),
   composedDate: t.text('composed_date'),
@@ -33,6 +35,14 @@ export const toc = t.sqliteTable('toc', {
   commentatorHebrew: t.text('commentator_hebrew'),
   corpus: t.text('corpus'),
   hasContent: t.integer('has_content', { mode: 'boolean' }),
+  skip: t.integer('skip', { mode: 'boolean' }),
+});
+
+export const meta = t.sqliteTable('meta', {
+  id: t.integer('id').primaryKey(),
+  tocId: t.integer('toc_id').notNull(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  schema: t.text('schema', { mode: 'json' }).$type<any>(),
 });
 
 export const content = t.sqliteTable(
@@ -40,14 +50,14 @@ export const content = t.sqliteTable(
   {
     id: t.integer('id').primaryKey(),
     tocId: t.integer('toc_id').notNull(),
-    sectionPath: t.text('section_path', { mode: 'json' }).$type<string[]>(),
-    sectionName: t.text('section_name'),
-    line: t.integer('line').notNull(),
+    ref: t.text('ref').notNull(),
+    isEnglish: t.integer('is_english', { mode: 'boolean' }),
     text: t.text('text'),
   },
   (table) => [
     t.index('toc_id_idx').on(table.tocId),
-    t.index('section_path_idx').on(table.sectionPath),
+    t.index('ref_idx').on(table.ref),
+    t.unique('unique_content').on(table.tocId, table.ref, table.isEnglish),
   ]
 );
 
@@ -56,41 +66,41 @@ export const links = t.sqliteTable(
   {
     id: t.integer('id').primaryKey(),
     fromId: t.integer('from_id').notNull(),
-    fromLine: t.integer('from_line').notNull(),
+    fromRef: t.text('from_ref').notNull(),
     toId: t.integer('to_id').notNull(),
-    toLine: t.integer('to_line').notNull(),
+    toRef: t.text('to_ref').notNull(),
     connectionType: t.text('connection_type'),
   },
   (table) => [
     t.index('from_id_idx').on(table.fromId),
-    t.index('from_id_line_idx').on(table.fromId, table.fromLine),
+    t.index('from_id_ref_idx').on(table.fromId, table.fromRef),
     t.index('to_id_idx').on(table.toId),
-    t.index('to_id_line_idx').on(table.toId, table.toLine),
+    t.index('to_id_ref_idx').on(table.toId, table.toRef),
     t
       .unique('unique_link')
-      .on(table.fromId, table.fromLine, table.toId, table.toLine),
+      .on(table.fromId, table.fromRef, table.toId, table.toRef),
   ]
 );
 
 export const sortLinkRow = (row: typeof links.$inferInsert) => {
-  const [fromId, fromLine, toId, toLine] = (() => {
-    const { fromId, fromLine, toId, toLine } = row;
+  const [fromId, fromRef, toId, toRef] = (() => {
+    const { fromId, fromRef, toId, toRef } = row;
     if (fromId === toId) {
-      return fromLine < toLine
-        ? [fromId, fromLine, toId, toLine]
-        : [toId, toLine, fromId, fromLine];
+      return fromRef < toRef
+        ? [fromId, fromRef, toId, toRef]
+        : [toId, toRef, fromId, fromRef];
     }
     return fromId < toId
-      ? [fromId, fromLine, toId, toLine]
-      : [toId, toLine, fromId, fromLine];
+      ? [fromId, fromRef, toId, toRef]
+      : [toId, toRef, fromId, fromRef];
   })();
 
   const sorted = {
+    ...row,
     fromId,
-    fromLine,
+    fromRef,
     toId,
-    toLine,
-    connectionType: row.connectionType,
+    toRef,
   };
 
   return sorted;

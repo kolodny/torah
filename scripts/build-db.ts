@@ -7,20 +7,34 @@ import { getDb } from '../orm/node.ts';
 import * as schema from '../orm/schema.ts';
 
 import Database from 'better-sqlite3';
+import { parse } from '@fast-csv/parse';
 
 const root = resolve(`${import.meta.dirname}/../`);
-const tocPath = `${root}/otzaria-library/books lists/ספריא/table_of_contents.json`;
-const metaPath = `${root}/otzaria-library/metadata.json`;
+const tocPath = `${root}/Sefaria-Export/table_of_contents.json`;
+const metaPath = `${root}/Sefaria-Export/schemas/*.json`;
 
 await $`mkdir ${root}/db`.catch(() => {});
 await $`rm -rf ${root}/drizzle`.catch(() => {});
 await $`rm -rf ${root}/db/master.sqlite`.catch(() => {});
 
-import type { Toc, Content } from '../toc.ts';
 import { MultiBar } from 'cli-progress';
 import { sync } from 'glob';
-import { readFileSync, statSync } from 'node:fs';
+import { createReadStream, readFileSync, statSync } from 'node:fs';
 import { inArray } from 'drizzle-orm';
+import type { Content, Toc } from '../types/toc.ts';
+import type { Meta } from '../types/schema.ts';
+
+import { skips } from './skips.ts';
+import {
+  contentDir,
+  badRefsLocation,
+  linkFiles,
+  organize,
+  metaByTitle,
+} from './organize-sefaria.ts';
+
+import type { ContentFile } from './organize-sefaria.ts';
+import { readJson } from './utils.ts';
 
 const sqlite = new Database(`${root}/db/master.sqlite`);
 const db = getDb(sqlite);
@@ -30,15 +44,29 @@ const FORMAT =
 
 const barStack = new MultiBar({ format: FORMAT });
 const updater = _.throttle(() => barStack.update(), 100);
-// const updater = () => barStack.update();
 
-const GLOB = '*';
-// const GLOB = '**בראשית**';
+const logged = new Set<string>();
+const log = (message: string) => {
+  if (!logged.has(message)) {
+    barStack.log(message);
+    logged.add(message);
+  }
+};
 
-const baseToId: Record<string, number> = {};
+console.time('organizing');
+await organize();
+console.timeEnd('organizing');
 
 await buildToc();
+const tocs = db
+  .select({ id: schema.toc.id, title: schema.toc.titleEnglish })
+  .from(schema.toc)
+  .all();
+const titleToId = Object.fromEntries(
+  tocs.map((toc) => [toc.title?.toLowerCase(), toc.id])
+);
 await buildBooks();
+await buildSchema();
 await buildLinks();
 
 updater.flush();
@@ -59,73 +87,63 @@ function makeInsert<Insert>(cb: (values: Insert[]) => void) {
   return { insert, flush };
 }
 
-function terminalString(str: string) {
-  if (process.env.GITHUB_ACTIONS) return str;
-  return str.split('').reverse().join('');
-}
-
 async function buildToc() {
-  type Metadata = Array<{
-    title: string;
-    author: string;
-    pubDate: string;
-    pubPlace: string;
-    compPlace: string;
-    compDate: string;
-  }>;
-
-  const toc = JSON.parse(readFileSync(tocPath, 'utf8')) as Toc;
-  const metadata = _.keyBy(
-    JSON.parse(readFileSync(metaPath, 'utf8')) as Metadata,
-    'title'
-  );
+  const toc = readJson<Toc[]>(tocPath)!;
+  const titleToMetaLocation: Record<string, string> = {};
+  for (const file of sync(metaPath)) {
+    const contents = readFileSync(file, 'utf8');
+    if (!contents) continue;
+    const schema = JSON.parse(contents) as Meta;
+    titleToMetaLocation[schema.title] = file;
+  }
 
   const bar = barStack.create(toc.length, 0);
   bar.update({ message: 'Building toc' });
   // bar.start(toc.length, 0);
-  const { insert, flush } = makeInsert<typeof schema.toc.$inferInsert>(
-    (values) => {
-      db.insert(schema.toc).values(values).run();
-    }
-  );
+  type TocInsert = typeof schema.toc.$inferInsert;
+  const { insert, flush } = makeInsert<TocInsert>((values) => {
+    db.insert(schema.toc).values(values).run();
+  });
 
   const process = (content: Content, parentId: number | null = null) => {
-    const title = 'heTitle' in content ? content.heTitle : null;
-    const meta = metadata[title!];
-    const value = {
+    const title = content.title ?? content.category;
+
+    const meta: Meta = metaByTitle[title?.toLowerCase() ?? ''];
+    const skip = skips.has(title ?? '');
+
+    // const meta = metadata[title!];
+    const value: TocInsert = {
       parentId,
-      descriptionEnglish: 'enDesc' in content ? content.enDesc : null,
-      descriptionHebrew: 'heDesc' in content ? content.heDesc : null,
+      descriptionEnglish: content.enDesc,
+      descriptionHebrew: content.heDesc,
       descriptionShortEnglish: content.enShortDesc,
-      titleEnglish: 'title' in content ? content.title : null,
-      titleHebrew: title,
-      author: meta?.author,
+      titleEnglish: content.title,
+      titleHebrew: content.heTitle,
+      sectionNames: meta?.sectionNames,
+      authorEnglish: meta?.authors?.[0]?.en,
+      authorHebrew: meta?.authors?.[0]?.he,
       publishedDate: meta?.pubDate,
       publishedPlace: meta?.pubPlace,
       composedDate: meta?.compDate,
       composedPlace: meta?.compPlace,
       descriptionShortHebrew: content.heShortDesc,
-      categories: 'categories' in content ? content.categories : null,
-      mainOrder: 'order' in content ? content.order : null,
-      categoryEnglish: 'category' in content ? content.category : null,
-      categoryHebrew: 'heCategory' in content ? content.heCategory : null,
-      completeEnglish: 'enComplete' in content ? content.enComplete : null,
-      completeHebrew: 'heComplete' in content ? content.heComplete : null,
-      baseTextOrder:
-        'base_text_order' in content ? content.base_text_order : null,
-      hidden: 'hidden' in content ? content.hidden : null,
-      primaryCategory:
-        'primary_category' in content ? content.primary_category : null,
-      dependence: 'dependence' in content ? content.dependence : null,
-      collectiveTitleEnglish:
-        'collectiveTitle' in content ? content.collectiveTitle : null,
-      collectiveTitleHebrew:
-        'heCollectiveTitle' in content ? content.heCollectiveTitle : null,
-      commentatorEnglish: 'commentator' in content ? content.commentator : null,
-      commentatorHebrew:
-        'heCommentator' in content ? content.heCommentator : null,
-      corpus: 'corpus' in content ? content.corpus : null,
-    } as typeof schema.toc.$inferInsert;
+      categories: content.categories,
+      mainOrder: content.order,
+      categoryEnglish: content.category,
+      categoryHebrew: content.heCategory,
+      completeEnglish: content.enComplete,
+      completeHebrew: content.heComplete,
+      baseTextOrder: content.base_text_order,
+      hidden: content.hidden,
+      primaryCategory: content.primary_category,
+      dependence: content.dependence,
+      collectiveTitleEnglish: content.collectiveTitle,
+      collectiveTitleHebrew: content.heCollectiveTitle,
+      commentatorEnglish: content.commentator,
+      commentatorHebrew: content.heCommentator,
+      corpus: content.corpus,
+      skip,
+    };
 
     if ('contents' in content) {
       const bigNextParentId = db
@@ -134,7 +152,7 @@ async function buildToc() {
         .run().lastInsertRowid;
       const nextParentId = bigNextParentId ? Number(bigNextParentId) : null;
 
-      for (const subContent of content.contents) {
+      for (const subContent of content.contents ?? []) {
         process(subContent, nextParentId);
       }
     } else {
@@ -154,15 +172,10 @@ async function buildToc() {
 }
 
 async function buildBooks() {
-  const tocs = db
-    .select({ id: schema.toc.id, title: schema.toc.titleHebrew })
-    .from(schema.toc)
-    .all();
-  const titleToId = Object.fromEntries(tocs.map((toc) => [toc.title!, toc.id]));
-  const files = sync(`${root}/otzaria-library/אוצריא/**/${GLOB}.txt`);
+  const files = sync(`${contentDir}/*.json`);
   const sizes = files.map((file) => statSync(file).size);
   let total = 0;
-  for (const size of sizes) total += size;
+  for (const size of sizes) if (size) total += size;
 
   const { insert, flush } = makeInsert<typeof schema.content.$inferInsert>(
     (values) => db.insert(schema.content).values(values).run()
@@ -171,82 +184,65 @@ async function buildBooks() {
   // console.log('Processing books');
   const bar = barStack.create(total, 0);
   bar.update({ message: 'Building books' });
-  const idsWithContent: number[] = [];
-  for (const [index, file] of Object.entries(files)) {
-    const title = basename(file, '.txt');
-    const data = readFileSync(file, 'utf-8');
-    const actualTitle = data.match(/<h1>(.*)<\/h1>/)?.[1];
-    const id = titleToId[actualTitle ?? title];
-    baseToId[title] = id;
+  const idsWithContent = new Set<number>();
 
-    if (!id) {
-      const r1 = terminalString(actualTitle ?? '').trim();
-      const r2 = terminalString(title).trim();
-      if (r1 === r2) {
-        barStack.log(`Could not find id for title: ${r1}. title: ${title}\n`);
-      } else {
-        barStack.log(`Could not find id for title: ${r1} or ${r2}\n`);
-      }
-    } else {
-      idsWithContent.push(id);
-      const path: string[] = [];
-      for (const [index, fullLine] of Object.entries(data.split('\n'))) {
-        let line = fullLine.trim();
-        const levelMatcher = /^<h(?<level>\d)>(?<path>.*)<\/h\k<level>>$/;
-        const heading = line.match(levelMatcher)?.groups;
-        if (heading) {
-          path.length = +heading.level;
-          path[heading.level] = heading.path;
-        } else if (line) {
-          const sectionPath = path.filter(Boolean);
-          const pathMatcher = /^\((?<path>[\u0590-\u05FF]+)\)\s*/;
-          const match = line.match(pathMatcher)?.groups;
-          let sectionName: string | null = null;
-          if (match?.path) {
-            sectionName = `פסוק ${match.path}`;
-            line = line.replace(pathMatcher, '');
-          }
-          insert({
-            tocId: id,
-            text: line,
-            line: +index + 1, // 1-indexed
-            sectionPath,
-            sectionName,
-          });
-        }
+  for (const [fileIndex, file] of Object.entries(files)) {
+    const isEnglish = file.endsWith('_english.json');
+    const book = readJson<ContentFile>(file)!;
+    const tocId = titleToId[book.title.toLowerCase()];
+    if (!tocId) {
+      if (!skips.has(book.title)) log(`Error: ${book.title} not found\n`);
+      continue;
+    }
+    const entries = Object.entries(book.content);
+    if (!entries.length) {
+      log(`Error: ${book.title} has no content\n`);
+      continue;
+    }
+
+    for (const [ref, text] of Object.entries(book.content)) {
+      if (typeof text === 'string') {
+        idsWithContent.add(tocId);
+        insert({
+          tocId,
+          ref,
+          isEnglish,
+          text,
+        });
       }
     }
 
-    bar.increment(sizes[index]);
+    bar.increment(sizes[fileIndex]);
     updater();
   }
   flush();
 
   db.update(schema.toc)
     .set({ hasContent: true })
-    .where(inArray(schema.toc.id, idsWithContent))
+    .where(inArray(schema.toc.id, [...idsWithContent]))
     .run();
 
   bar.stop();
 }
 
-async function buildLinks() {
-  const tocs = db
-    .select({ id: schema.toc.id, title: schema.toc.titleHebrew })
-    .from(schema.toc)
-    .all();
+async function buildSchema() {
+  type Insert = typeof schema.meta.$inferInsert;
+  const { insert, flush } = makeInsert<Insert>((values) => {
+    db.insert(schema.meta).values(values).run();
+  });
 
-  const titleToId = Object.fromEntries(tocs.map((toc) => [toc.title!, toc.id]));
-  const logged = new Set<string>();
-  const log = (message: string) => {
-    if (!logged.has(message)) {
-      barStack.log(message);
-      logged.add(message);
+  for (const schema of Object.values(metaByTitle)) {
+    const title = schema?.title.toLowerCase();
+    const tocId = titleToId[title!];
+    if (tocId) {
+      insert({ tocId, schema });
     }
-  };
+  }
+  flush();
+}
 
-  const files = sync(`${root}/otzaria-library/links/**/${GLOB}.json`);
-  const sizes = files.map((file) => statSync(file).size);
+async function buildLinks() {
+  const sizes = linkFiles.map((file) => statSync(file).size);
   let total = 0;
   for (const size of sizes) total += size;
 
@@ -261,56 +257,59 @@ async function buildLinks() {
   bar.update({
     message: 'Processing links',
     files: 0,
-    totalFiles: files.length,
+    totalFiles: linkFiles.length,
     processed: 0,
     totalBytes: total,
   });
   const subBar = barStack.create(100, 0);
   let processed = 0;
 
-  for (const [index, file] of Object.entries(files)) {
-    type Link = {
-      line_index_1: number;
-      heRef_2: string;
-      path_2: string;
-      line_index_2: number;
-      'Conection Type': string;
-    };
+  for (const [index, file] of Object.entries(linkFiles)) {
+    const totalLinks = readFileSync(file, 'utf8').split('\n').length;
 
-    const data: Link[] = JSON.parse(readFileSync(file, 'utf-8'));
-    const baseFile = basename(file, '_links.json');
+    subBar.start(totalLinks, 0, {
+      message: `Processing links for ${basename(file)}`,
+    });
 
-    const base = terminalString(baseFile);
+    const badRefs = readJson<Record<string, string[]>>(badRefsLocation);
 
-    subBar.start(data.length, 0, { message: `Processing links for ${base}` });
-    for (const link of data) {
-      const type = link['Connection Type'] ?? link['Conection Type'];
+    const split = (citation: string) => {
+      const parts = citation.split(/( |(?:, ))/);
+      for (let stop = parts.length; stop > 0; stop -= 2) {
+        const work = parts.slice(0, stop).join('');
+        if (skips.has(work)) return;
+        const tocId = titleToId[work.toLowerCase()];
+        if (tocId) {
+          const ref = parts.slice(stop + 1).join('');
+          const isBadRef = badRefs?.[work]?.includes(ref);
+          if (isBadRef) return;
 
-      const toFile = link.path_2.split('\\').pop()?.replace('.txt', '');
-      const toId = baseToId[toFile!] ?? titleToId[toFile!];
-      const fromId = baseToId[baseFile];
-
-      if (toId && fromId) {
-        insert(
-          schema.sortLinkRow({
-            fromId,
-            fromLine: link.line_index_1,
-            toId,
-            toLine: link.line_index_2,
-            connectionType: type,
-          })
-        );
-      } else {
-        if (!toId) {
-          log(`Could not find id for toId: ${link.heRef_2}\n`);
-        } else {
-          log(`Could not find id for fromId: ${baseFile}\n`);
+          return { tocId, ref };
         }
       }
 
+      log(`No title found for ${citation}\n`);
+    };
+
+    const stream = createReadStream(file).pipe(parse({ headers: true }));
+    for await (const row of stream) {
+      const citation1 = split(row['Citation 1']);
+      const citation2 = split(row['Citation 2']);
+      if (citation1 && citation2) {
+        insert(
+          schema.sortLinkRow({
+            fromId: citation1.tocId,
+            fromRef: citation1.ref,
+            toId: citation2.tocId,
+            toRef: citation2.ref,
+            connectionType: row['Conection Type'],
+          })
+        );
+      }
       subBar.increment();
       updater();
     }
+
     processed += sizes[index];
     const processedFiles = +index + 1;
     bar.update(processed, { files: processedFiles, processed });

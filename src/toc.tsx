@@ -1,14 +1,38 @@
 import React from 'react';
-import { worker } from './main';
+import { getOrm } from './orm';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   NumberParam,
+  StringParam,
   useQueryParam,
   useQueryParams,
   withDefault,
 } from 'use-query-params';
-import { getContent, getGrouped, getLinks, getToc, Node } from './queries';
+import {
+  getContent,
+  getGrouped,
+  getLinks,
+  getMeta,
+  getToc,
+  Node,
+} from './queries';
 import _ from 'lodash';
+import { getSectionsFromRef } from './shared';
+import {
+  Box,
+  Button,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Select,
+  MenuItem,
+  FormControl,
+} from '@mui/material';
 
 const formatBytes = (bytes: number) =>
   new Intl.NumberFormat('en', {
@@ -25,25 +49,25 @@ const Links: React.FunctionComponent<{
   links: Array<{
     id: number;
     other: Node;
-    line: number;
+    ref: string;
     otherId: number;
-    otherLine: number;
+    otherRef: string;
   }>;
 }> = ({ links }) => {
   const [expanded, setExpanded] = React.useState(false);
   const [, updateParams] = useQueryParams();
   const map = (link: (typeof links)[number]) => {
-    const label = `${link.other.titleHebrew} ${link.otherLine}`;
+    const label = `${link.other.titleEnglish} ${link.otherRef}`;
     return (
       <div key={link.id}>
         <a
           onClick={(e) => {
             e.preventDefault();
             const current = link.other.id;
-            const params = { line: link.otherLine, current };
+            const params = { ref: link.otherRef, current };
             updateParams(params);
           }}
-          href={`/?current=${link.other.id}&line=${link.otherLine}`}
+          href={`/?current=${link.other.id}&ref=${link.otherRef}`}
         >
           {label}
         </a>
@@ -55,9 +79,13 @@ const Links: React.FunctionComponent<{
 
   return (
     <div>
-      <button onClick={() => setExpanded(!expanded)}>
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={() => setExpanded(!expanded)}
+      >
         {expanded ? 'Hide' : `Show ${links.length}`} links
-      </button>
+      </Button>
       {expanded ? links.map(map) : null}
     </div>
   );
@@ -69,10 +97,10 @@ export const Toc: React.FC = () => {
     queryFn: getToc,
   });
   const [params, updateParams] = useQueryParams({
-    line: NumberParam,
+    ref: StringParam,
     current: NumberParam,
   });
-  const line = params.line;
+  const ref = params.ref;
   const current = params.current ?? 0;
 
   const client = useQueryClient();
@@ -81,32 +109,65 @@ export const Toc: React.FC = () => {
     queryFn: async () => getContent(current),
   });
 
+  const meta = useQuery({
+    queryKey: ['meta', current],
+    queryFn: async () => getMeta(current),
+    enabled: !!current,
+  });
+
   const links = useQuery({
-    // queryKey: ['links', current, minLine, maxLine],
-    // queryFn: async () => await getLinks(current, minLine, maxLine),
     queryKey: ['links', current],
     queryFn: async () => await getLinks(current),
   });
 
+  React.useEffect(() => {
+    console.log({
+      current: toc.data?.[current],
+      links: links.data,
+      content: content.data,
+      minSchema: meta.data,
+    });
+  }, [content.data, current, links.data, meta.data, toc.data]);
+
   const sections = React.useMemo(() => {
     if (!content.data) return undefined;
-    const bySection = _.groupBy(content.data, (data) =>
-      data.sectionPath?.join(' > ')
-    );
-    return Object.entries(bySection).map(([sectionName, contents]) => ({
-      sectionName,
-      contents,
+    if (!meta.data) return undefined;
+    const contentSections = content.data.map((c) => ({
+      ...c,
+      sections: getSectionsFromRef(c.ref, meta.data.schema.schema),
     }));
-  }, [content.data]);
+    const grouped = _.groupBy(contentSections, (sections) =>
+      sections.sections
+        ?.map((s) => `${s.name}${s.number ? ` ${s.number}` : ''}`)
+        .slice(0, -1)
+        .join(' > ')
+    );
+    const newSections = Object.entries(grouped).map(
+      ([sectionName, contents]) => ({
+        sectionName,
+        contents,
+      })
+    );
+    return newSections;
+  }, [content.data, meta.data]);
 
   const [sectionIndex, setSectionIndex] = useQueryParam(
     'section',
     withDefault(NumberParam, 0),
     { removeDefaultsFromUrl: true }
   );
+
+  const refSectionIndex = React.useMemo(() => {
+    return sections?.findIndex((section) =>
+      section.contents.find((content) => content.ref === ref)
+    );
+  }, [ref, sections]);
+
+  const refSectionIndexRef = React.useRef(refSectionIndex);
+  refSectionIndexRef.current = refSectionIndex;
   React.useEffect(() => {
     if (content.data) {
-      setSectionIndex(0);
+      setSectionIndex(Math.max(refSectionIndexRef.current ?? 0, 0));
     }
   }, [content.data, setSectionIndex]);
 
@@ -115,12 +176,8 @@ export const Toc: React.FC = () => {
     return sections?.[sectionIndex];
   }, [sectionIndex, content.data, sections]);
 
-  // const minLine = Math.min(...(thisSection?.map((l) => l.line!) ?? []));
-  // const maxLine = Math.max(...(thisSection?.map((l) => l.line!) ?? []));
-  // console.log({ thisSection, minLine, maxLine });
-
   const grouped = useQuery({
-    queryKey: ['content', 'grouped'],
+    queryKey: ['grouped'],
     queryFn: getGrouped,
   });
 
@@ -139,6 +196,7 @@ export const Toc: React.FC = () => {
   React.useEffect(() => {
     asyncEffect();
     async function asyncEffect() {
+      const { worker } = await getOrm();
       if (data?.[current]?.hasContent && content.data?.length === 0) {
         let lastPercent = -1;
         await worker.merge(current, (info) => {
@@ -151,6 +209,7 @@ export const Toc: React.FC = () => {
         });
         client.invalidateQueries({ queryKey: ['content'] });
         client.invalidateQueries({ queryKey: ['links'] });
+        client.invalidateQueries({ queryKey: ['meta'] });
       }
     }
   }, [client, content.data?.length, current, data]);
@@ -168,12 +227,14 @@ export const Toc: React.FC = () => {
 
   let download = <></>;
   if (data[current]?.hasContent && content.data?.length === 0) {
-    download = <>Downloading {data[current].titleHebrew}</>;
+    download = (
+      <Typography>Downloading {data[current].titleEnglish}</Typography>
+    );
   }
 
-  const title = (node?: Node) => node?.categoryHebrew ?? node?.titleHebrew;
+  const title = (node?: Node) => node?.categoryEnglish ?? node?.titleEnglish;
   const calculateSize = (node: Node) => {
-    let size = data[node.id]?.fileSize ?? 0;
+    let size = data[node.id]?.hasContent ? data[node.id]?.fileSize ?? 0 : 0;
     for (const child of node.children) {
       size += calculateSize(child);
     }
@@ -182,98 +243,102 @@ export const Toc: React.FC = () => {
   const calculateMissingBytes = (node: Node) => {
     if (grouped.isLoading || toc.isLoading) return 0;
     const localNode = grouped.data?.[node.id];
-    const actual = data[node.id]?.contentEntries ?? 0;
-    let size = localNode === actual ? 0 : data[node.id].fileSize ?? 0;
+    const info = data[node.id];
+    const actual = info?.contentEntries ?? 0;
+    let size = info.hasContent
+      ? localNode === actual
+        ? 0
+        : info.fileSize ?? 0
+      : 0;
     for (const child of node.children) {
       size += calculateMissingBytes(child);
     }
     return size;
   };
 
-  let table = <></>;
   const children = data[current].children;
-  if (children.length) {
-    table = (
-      <table>
-        <thead>
-          <tr>
-            <td>Name</td>
-            <th>Total size</th>
-            <th>Missing</th>
-          </tr>
-        </thead>
-        <tbody>
-          {children.map((topic) => {
-            return (
-              <tr key={topic.id}>
-                <td>
-                  <a
-                    href=""
-                    onClick={(e) => {
-                      e.preventDefault();
-                      updateParams({ current: topic.id, line: null });
-                    }}
-                  >
-                    {title(topic)}
-                  </a>
-                </td>
-                <td>{formatBytes(calculateSize(topic))}</td>
-                <td>{formatBytes(calculateMissingBytes(topic))}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+  const sectionPicker = () => {
+    // Don't render the section picker if sections are not available yet
+    if (!sections || sections.length === 0) {
+      return null;
+    }
+
+    return (
+      <Box sx={{ display: 'flex', gap: 1, my: 2 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          disabled={!sectionIndex}
+          onClick={() => setSectionIndex(sectionIndex! - 1)}
+        >
+          Previous
+        </Button>
+
+        <FormControl size="small" sx={{ minWidth: 200 }}>
+          <Select
+            value={`${sectionIndex}`}
+            onChange={(e) => setSectionIndex(+e.target.value)}
+            displayEmpty={false}
+          >
+            {sections.map((section, index) => (
+              <MenuItem
+                key={section.sectionName || `section-${index}`}
+                value={index}
+              >
+                {section.sectionName || `Section ${index + 1}`}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Button
+          variant="outlined"
+          size="small"
+          disabled={sectionIndex! >= sections.length - 1}
+          onClick={() => setSectionIndex(sectionIndex! + 1)}
+        >
+          Next
+        </Button>
+      </Box>
     );
-  }
-
-  const sectionPicker = () => (
-    <div style={{ display: 'flex', gap: 8 }}>
-      <button
-        disabled={!sectionIndex}
-        onClick={() => setSectionIndex(sectionIndex! - 1)}
-      >
-        Previous
-      </button>
-
-      <select
-        value={`${sectionIndex}`}
-        onChange={(e) => setSectionIndex(+e.target.value)}
-      >
-        {sections?.map((section, index) => (
-          <option key={section.sectionName} value={index}>
-            {section.sectionName}
-          </option>
-        ))}
-      </select>
-
-      <button
-        disabled={sectionIndex! >= sections!.length - 1}
-        onClick={() => setSectionIndex(sectionIndex! + 1)}
-      >
-        Next
-      </button>
-    </div>
-  );
+  };
 
   return (
-    <div style={{ direction: 'rtl' }}>
-      <button
+    <Box
+      sx={{
+        direction: 'rtl',
+        '& button': { fontFamily: 'inherit' },
+        '& a': { textDecoration: 'none' },
+      }}
+    >
+      <Button
+        variant="outlined"
+        color="error"
+        size="small"
+        sx={{ mb: 2 }}
         onClick={async () => {
           if (!confirm('Are you sure?')) return;
+          const { worker } = await getOrm();
           await worker.wipe();
           location.reload();
         }}
       >
         Wipe out DB
-      </button>
-      <h2
-        style={{
+      </Button>
+
+      <Typography
+        variant="h5"
+        component="h2"
+        sx={{
           position: 'sticky',
           top: 0,
-          background: 'white',
-          margin: 0,
-          padding: 10,
+          bgcolor: 'background.paper',
+          m: 0,
+          p: 1,
+          zIndex: 1,
+          borderBottom: 1,
+          borderColor: 'divider',
         }}
       >
         {breadcrumbs.map((id, index) => {
@@ -282,39 +347,47 @@ export const Toc: React.FC = () => {
             ''
           ) : (
             <>
-              <button
+              <Button
+                size="small"
+                variant="text"
                 disabled={downloading}
                 onClick={async (e) => {
                   setDownloading(true);
-                  console.time('download');
+                  const node = data[id];
+                  const timeKey = `download ${
+                    node.titleEnglish ?? node.categoryEnglish
+                  }`;
+                  console.time(timeKey);
                   e.preventDefault();
+                  const log = _.throttle((message: string) => {
+                    console.log(message);
+                  }, 1000);
+                  const invalidate = _.throttle(() => {
+                    return Promise.all([
+                      client.invalidateQueries({ queryKey: ['grouped'] }),
+                    ]);
+                  }, 100);
+                  const { worker } = await getOrm();
                   const recur = async (node: Node) => {
                     const localNode = grouped.data?.[node.id];
                     if (!localNode && toc.data?.[node.id]?.hasContent) {
-                      await worker.merge(node.id, (info) => {
-                        const percent = Math.floor(
-                          (info.processed / info.total) * 100
-                        );
-                        console.log(
-                          `Downloading "${node.titleEnglish}" ${percent}% done`
-                        );
+                      await worker.merge(node.id, ({ processed, total }) => {
+                        const percent = Math.floor((processed / total) * 100);
+                        const msg = `Downloading "${node.titleEnglish}" ${percent}% done`;
+                        log(msg);
                       });
                     }
-                    for (const child of node.children) {
-                      await recur(child);
-                    }
-                    client.invalidateQueries({
-                      queryKey: ['content', 'grouped'],
-                    });
+                    for (const child of node.children) await recur(child);
+
+                    await invalidate();
                   };
                   await recur(data[id]);
-                  client.invalidateQueries({ queryKey: ['links'] });
-                  console.timeEnd('download');
+                  console.timeEnd(timeKey);
                   setDownloading(false);
                 }}
               >
                 Download {formatBytes(missingBytes)} missing
-              </button>
+              </Button>
             </>
           );
           return (
@@ -324,85 +397,148 @@ export const Toc: React.FC = () => {
                 href={`/${id}`}
                 onClick={(e) => {
                   e.preventDefault();
-                  updateParams({ current: id, line: null });
+                  updateParams({ current: id, ref: null });
                 }}
               >
-                {id === 0 ? 'Root' : title(data[id])}
+                {id === 0
+                  ? 'Root'
+                  : data[id].titleHebrew ?? data[id].categoryHebrew}
               </a>
               {missing}
             </span>
           );
         })}
-      </h2>
-      {table}
+      </Typography>
 
-      {content.isLoading ? <div>Loading content...</div> : null}
+      {children.length > 0 && (
+        <TableContainer component={Paper} sx={{ my: 2 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell align="right">Total size</TableCell>
+                <TableCell align="right">Missing</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {children.map((topic) => (
+                <TableRow key={topic.id}>
+                  <TableCell>
+                    <a
+                      href=""
+                      onClick={(e) => {
+                        e.preventDefault();
+                        updateParams({ current: topic.id, ref: null });
+                      }}
+                    >
+                      {title(topic)}
+                    </a>
+                  </TableCell>
+                  <TableCell align="right">
+                    {formatBytes(calculateSize(topic))}
+                  </TableCell>
+                  <TableCell align="right">
+                    {formatBytes(calculateMissingBytes(topic))}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {content.isLoading && <Typography>Loading content...</Typography>}
       {download}
 
-      {console.time('table') as never}
       {!!thisSection?.contents?.length && (
-        <div>
+        <Box>
           {sectionPicker()}
-          <table>
-            <thead>
-              <tr
-                style={{
-                  position: 'sticky',
-                  top: 48,
-                  background: 'white',
-                }}
-              >
-                <td>Section Path</td>
-                <td>Line</td>
-                <td>Text</td>
-                <td>Links</td>
-              </tr>
-            </thead>
-            <tbody>
-              {thisSection.contents.map((data) => {
-                const thisItem = line === data.line;
-                const linksWithOther =
-                  links.data?.[data.line ?? 0]?.map((link) => {
-                    return { ...link, other: toc.data[link.otherId] };
-                  }) ?? [];
-                const sectionPath = [...(data.sectionPath ?? [])];
-                if (data.sectionName) sectionPath?.push(data.sectionName);
+          <TableContainer component={Paper}>
+            <Table size="small">
+              <TableHead>
+                <TableRow
+                  sx={{
+                    position: 'sticky',
+                    top: 48,
+                    bgcolor: 'background.paper',
+                  }}
+                >
+                  <TableCell>Reference</TableCell>
+                  <TableCell>Text</TableCell>
+                  <TableCell>Links</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {thisSection.contents
+                  .filter((d) => !d.isEnglish)
+                  .map((data) => {
+                    const thisItem = ref === data.ref;
+                    const linksWithOther =
+                      links.data?.[data.ref ?? 0]?.map((link) => {
+                        return { ...link, other: toc.data[link.otherId] };
+                      }) ?? [];
+                    const translation = thisSection.contents.find(
+                      (r) => r.isEnglish && r.ref === data.ref
+                    );
 
-                return (
-                  <tr key={data.id}>
-                    <td>{sectionPath?.join(' > ')}</td>
-                    <td>{data.line}</td>
-                    <td>
-                      <div
-                        ref={
-                          thisItem
-                            ? (e) => e?.scrollIntoView({ block: 'center' })
-                            : undefined
-                        }
-                        style={{
-                          display: 'inline-block',
-                          maxWidth: '50vw',
-                          background: thisItem ? 'yellow' : 'none',
-                        }}
-                        dangerouslySetInnerHTML={{ __html: data.text ?? '' }}
-                      />
-                    </td>
-                    <td>
-                      {links.isLoading ? (
-                        'Loading links...'
-                      ) : (
-                        <Links links={linksWithOther} />
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {console.timeEnd('table') as never}
-            </tbody>
-          </table>
+                    return (
+                      <TableRow key={data.id} sx={{ verticalAlign: 'top' }}>
+                        <TableCell>{data.ref}</TableCell>
+                        <TableCell>
+                          <Box
+                            sx={{
+                              display: 'inline-flex',
+                              maxWidth: '50vw',
+                              bgcolor: thisItem ? 'yellow' : 'transparent',
+                            }}
+                          >
+                            <div
+                              ref={
+                                thisItem
+                                  ? (e) =>
+                                      e?.scrollIntoView({ block: 'center' })
+                                  : undefined
+                              }
+                              dangerouslySetInnerHTML={{
+                                __html: data.text ?? '',
+                              }}
+                            />
+                            {translation && (
+                              <details>
+                                <summary
+                                  style={{ display: 'flex', minWidth: 100 }}
+                                >
+                                  Toggle English
+                                </summary>
+                                <div
+                                  style={{
+                                    display: 'inline-block',
+                                    maxWidth: '30vw',
+                                  }}
+                                  dangerouslySetInnerHTML={{
+                                    __html: translation.text ?? '',
+                                  }}
+                                />
+                              </details>
+                            )}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          {links.isLoading ? (
+                            'Loading links...'
+                          ) : (
+                            <Links links={linksWithOther} />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+          </TableContainer>
           {sectionPicker()}
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 };

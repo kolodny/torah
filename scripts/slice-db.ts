@@ -119,6 +119,20 @@ async function sliceTitle({ id, title }: { id: number; title: string }) {
   for (const link of await linkSlice) linkInsert.insert(link);
 
   linkInsert.flush();
+
+  const minSchemaSlice = await db
+    .select()
+    .from(schema.meta)
+    .where(eq(schema.meta.tocId, id));
+
+  const minSchemaInsert = makeInsert<typeof schema.meta.$inferInsert>(
+    (values) => sliced.insert(schema.meta).values(values).run()
+  );
+
+  for (const content of minSchemaSlice) minSchemaInsert.insert(content);
+
+  minSchemaInsert.flush();
+
   slicedSqlite.close();
 
   const fileSize = statSync(dbPath).size;

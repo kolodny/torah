@@ -25,3 +25,11 @@ dist-ssr
 otzaria-library
 db
 drizzle
+Sefaria-Export/
+organized/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

@@ -10,17 +10,17 @@ To get started, clone the repository and install the dependencies.
 npm install
 ```
 
-The DB is not included in this repository. The main data is extracted from the [otzaria-library](https://github.com/Sivan22/otzaria-library) repository. To get started, you'll need to clone the library repository and process the data. Included in the following section is how to download just the data you need from the repo since the repo is quite large.
+The DB is not included in this repository. The main data is extracted from the [Sefaria-Export](https://github.com/Sefaria/Sefaria-Export) repository. To get started, you'll need to clone the library repository and process the data. Included in the following section is how to download just the data you need from the repo since the repo is quite large.
 
 ```bash
 
 # In the root folder of this project
-git clone --filter=blob:none --no-checkout https://github.com/Sivan22/otzaria-library.git
-cd otzaria-library
+git clone --filter=blob:none --no-checkout https://github.com/Sefaria/Sefaria-Export.git
+cd Sefaria-Export
 
 # Set up sparse checkout before any files are downloaded
 git sparse-checkout init --cone
-git sparse-checkout set links/ אוצריא/ 'books lists/ספריא/'
+git sparse-checkout set json/ schemas/ links/ table_of_contents.json
 
 # Here's where the files get downloaded, this will still take some time to run
 git checkout HEAD
