@@ -7,7 +7,7 @@ export interface Meta {
   base_text_titles?: CollectiveTitle[];
   categories: string[];
   collective_title?: CollectiveTitle;
-  compDate?: string;
+  compDate?: number[];
   compDateString?: CollectiveTitle;
   compPlace?: string;
   compPlaceString?: CollectiveTitle;
@@ -19,8 +19,8 @@ export interface Meta {
   enDesc?: string;
   enShortDesc?: string;
   era?: Era | null;
-  errorMargin?: number | string;
   exclude_structs?: ExcludeStruct[];
+  hasErrorMargin?: boolean;
   heCategories: string[];
   heDesc?: string;
   heShortDesc?: string;
@@ -30,93 +30,82 @@ export interface Meta {
   is_cited?: boolean;
   lexiconName?: string;
   order?: number[];
-  pubDate?: string;
+  pubDate?: number[];
+  pubDateString?: CollectiveTitle;
   pubPlace?: string;
+  pubPlaceString?: CollectiveTitle;
   schema: SchemaClass;
-  sectionNames?: SchemaSectionName[];
+  sectionNames?: SectionName[];
   title: string;
   titleVariants: string[];
 }
 
-export interface Alts {
+type Node =
+  | ChapterNode
+  | IndecentNode
+  | IndigoNode
+  | Pages
+  | PagesNode
+  | PurpleNode
+  | SchemaNode
+  | StickyNode
+  | TentacledNode
+  | The30DayCycleNode;
+
+interface Alts {
   '30 Day Cycle'?: The30_DayCycle;
+  Authors?: Authors;
   Book?: The30_DayCycle;
-  Chamber?: The30_DayCycle;
-  Chapter?: The30_DayCycle;
+  Chamber?: Chamber;
+  Chapter?: Chapter;
   Chapters?: The30_DayCycle;
-  Contents?: The30_DayCycle;
-  Daf?: The30_DayCycle;
-  'Daf Yomi'?: DafYomi;
+  Compositions?: Authors;
+  Contents?: Contents;
+  Daf?: Daf;
   Essay?: Essay;
   Gate?: The30_DayCycle;
-  Hilchot?: The30_DayCycle;
-  Letter?: The30_DayCycle;
-  Pages?: DafYomi;
+  Hilchot?: Chapter;
+  Letter?: Contents;
+  Pages?: Pages;
   Parasha?: Parasha;
   Pillars?: The30_DayCycle;
-  Remez?: The30_DayCycle;
-  Section?: Essay;
-  Siman?: The30_DayCycle;
-  Tikkunim?: The30_DayCycle;
+  Remez?: Contents;
+  Siman?: Contents;
+  'Tanaim and Amoraim'?: Authors;
+  Tikkunim?: Contents;
   Topic?: Topic;
-  'Vavim and Amudim'?: The30_DayCycle;
-  Venice?: The30_DayCycle;
-  Vilna?: The30_DayCycle;
+  'Vavim and Amudim'?: Chamber;
 }
 
-export interface The30_DayCycle {
+interface The30_DayCycle {
   heTitle: string;
-  nodes: DafYomi[];
+  nodes: The30DayCycleNode[];
   title: string;
   titles: Title[];
 }
 
-export interface DafYomiNode {
-  addressTypes?: AddressType[];
-  addresses?: number[];
-  default?: boolean;
+interface The30DayCycleNode {
+  addressTypes?: PagesAddressType[];
   depth?: number;
   heTitle: string;
   includeSections?: boolean;
-  nodeType?: DafYomiNodeType;
-  nodes?: DafYomi[];
-  offset?: number;
-  refs?: string[];
-  sectionNames?: DafYomiSectionName[];
-  sharedTitle?: SharedTitle;
-  skipped_addresses?: number[];
-  startingAddress?: number | string;
-  title: string;
-  titles?: Title[];
-  wholeRef?: string;
-}
-
-export interface DafYomi {
-  addressTypes?: AddressType[];
-  addresses?: number[];
-  default?: boolean;
-  depth?: number;
-  heTitle: string;
-  includeSections?: boolean | string;
   isSegmentLevelDiburHamatchil?: boolean;
-  match_templates?: DafYomiMatchTemplate[];
-  nodeType?: DafYomiNodeType;
-  nodes?: DafYomiNode[];
+  match_templates?: PurpleMatchTemplate[];
+  nodeType?: PagesNodeType;
+  nodes?: Node[];
   numeric_equivalent?: number;
   offset?: number;
   referenceableSections?: boolean[];
   refs?: string[];
-  sectionNames?: DafYomiSectionName[];
-  skipped_addresses?: number[];
-  startingAddress?: number | string;
+  sectionNames?: SectionName[];
+  startingAddress?: number;
   title: string;
-  titles?: Title[];
+  titles: Title[];
   wholeRef?: string;
 }
 
-type AddressType =
+type PagesAddressType =
   | 'Aliyah'
-  | 'Folio'
   | 'Halakhah'
   | 'Integer'
   | 'Mishnah'
@@ -129,85 +118,21 @@ type AddressType =
   | 'Talmud'
   | 'Volume';
 
-type DafYomiNodeType = 'ArrayMapNode';
-
-type DafYomiSectionName =
-  | 'Additional Tikkun'
-  | 'Chapter'
-  | 'Chapters'
-  | 'Column'
-  | 'Daf'
-  | 'Halakhah'
-  | 'Klal'
-  | 'Line'
-  | 'Pages'
-  | 'Paragraph'
-  | 'Room'
-  | 'Seif'
-  | 'Seif Katan'
-  | 'Siman'
-  | 'Tikkun'
-  | 'Vav'
-  | 'Verse';
-
-type SharedTitle = 'Introduction';
-
-export interface Title {
-  lang: Lang;
-  presentation?: Presentation;
-  primary?: boolean;
-  text: string;
-}
-
-type Lang = 'en' | 'he';
-
-type Presentation = 'both';
-
-export interface DafYomiMatchTemplate {
+interface PurpleMatchTemplate {
   scope?: Scope;
   term_slugs: string[];
 }
 
 type Scope = 'alone' | 'any';
 
-export interface Essay {
-  heTitle: string;
-  nodes: The30_DayCycle[];
-  title: string;
-  titles: Title[];
-}
+type PagesNodeType = 'AltStructNode' | 'ArrayMapNode';
 
-export interface Parasha {
-  heTitle: string;
-  nodes: ParashaNode[];
-  title: string;
-  titles: Title[];
-}
-
-export interface ParashaNode {
-  addressTypes?: AddressType[];
+interface PagesNode {
   depth?: number;
   heTitle: string;
   includeSections?: boolean;
-  match_templates?: DafYomiMatchTemplate[];
-  nodeType?: DafYomiNodeType;
-  nodes?: PurpleNode[];
-  offset?: number;
-  refs?: string[];
-  sectionNames?: PurpleSectionName[];
-  sharedTitle?: string;
-  startingAddress?: string;
-  title: string;
-  titles: Title[];
-  wholeRef?: string;
-}
-
-export interface PurpleNode {
-  depth?: number;
-  heTitle: string;
-  includeSections?: boolean;
-  nodeType?: DafYomiNodeType;
-  nodes?: DafYomi[];
+  nodeType?: PagesNodeType;
+  nodes?: Node[];
   refs?: any[];
   sharedTitle?: string;
   title: string;
@@ -215,344 +140,74 @@ export interface PurpleNode {
   wholeRef?: string;
 }
 
-type PurpleSectionName =
-  | 'Aliyah'
-  | 'Chamber'
-  | 'Chapter'
-  | 'Comment'
-  | 'Daf'
-  | "'Epistle'"
-  | 'Essay'
-  | 'Gate'
-  | 'Halakhah'
-  | 'Klal'
-  | 'Mishnah'
-  | 'Mitzvah'
-  | 'Nahar'
-  | 'Negative Mitzvah'
-  | 'Paragraph'
-  | 'Parasha'
-  | 'Positive Mitzvah'
-  | 'Principle'
-  | "'Paragraph'"
-  | 'Section'
-  | 'chapter'
-  | "'Comment'"
-  | 'paragraph'
-  | 'siman'
-  | 'Segment'
-  | 'Seif'
-  | 'Shaar'
-  | 'Sheilta'
-  | 'Siman'
-  | 'Subsection'
-  | 'Teshuvah'
-  | 'Verse'
-  | 'Window'
-  | 'Word';
-
-export interface Topic {
-  heTitle: string;
-  nodes: TopicNode[];
-  title: string;
-  titles: Title[];
-}
-
-export interface TopicNode {
-  addressTypes?: AddressType[];
+interface Pages {
+  addressTypes?: PagesAddressType[];
+  default?: boolean;
   depth?: number;
   heTitle: string;
-  includeSections?: boolean | string;
-  nodeType?: DafYomiNodeType;
-  nodes?: DafYomi[];
+  includeSections?: boolean;
+  match_templates?: PagesMatchTemplate[];
+  nodeType?: PagesNodeType;
+  nodes?: Node[];
   offset?: number;
   refs?: string[];
-  sectionNames?: DafYomiSectionName[];
-  sharedTitle?: SharedTitle;
-  startingAddress?: string;
+  sectionNames?: SectionName[];
+  startingAddress?: number;
   title: string;
-  titles: Title[];
+  titles?: Title[];
   wholeRef?: string;
 }
 
-export interface Author {
-  en: string;
-  he: string;
-  slug: string;
+interface Title {
+  lang: Lang;
+  presentation?: string;
+  primary?: boolean;
+  text: string;
 }
 
-type BaseTextMapping =
-  | 'commentary_increment_base_text_depth'
-  | ''
-  | 'many_to_one'
-  | 'many_to_one_default_only'
-  | 'one_to_one';
+type Lang = 'en' | 'he';
 
-export interface CollectiveTitle {
-  en: string;
-  he: string;
-}
-
-type Corpora = 'Bavli' | 'Midrash Rabbah' | 'Mishnah' | 'Tanakh' | 'Yerushalmi';
-
-type Dependence = 'Commentary' | 'commentary' | 'Guides' | 'Midrash' | 'Targum';
-
-type Era = 'A' | 'AH' | 'CO' | 'GN' | 'RI' | 'T';
-
-type ExcludeStruct = 'schema';
-
-export interface SchemaClass {
-  addressTypes?: AddressType[];
-  checkFirst?: CollectiveTitle;
-  depth?: number;
-  diburHamatchilRegexes?: DiburHamatchilRegex[];
-  heSectionNames?: SchemaHeSectionName[];
-  heTitle: string;
-  isSegmentLevelDiburHamatchil?: boolean;
-  key: string;
-  lengths?: number[];
-  match_templates?: SchemaMatchTemplate[];
-  nodeType?: SchemaNodeType;
-  nodes?: SchemaNode[];
-  ref_resolver_context_swaps?: RefResolverContextSwaps;
-  referenceableSections?: boolean[];
-  sectionNames?: SchemaSectionName[];
-  title: string;
-  titles: Title[];
-  toc_zoom?: number;
-}
-
-type DiburHamatchilRegex =
-  | '^<b>(.+?)</b>'
-  | '\\.(.+?)$'
-  | '^(.+?)[\\-–]'
-  | "^(?:(?:מתני'|גמ')\\s?)?(.+)$";
-
-type SchemaHeSectionName =
-  | ''
-  | 'אות'
-  | 'דף'
-  | 'דרוש'
-  | 'הדרן'
-  | 'הוראה'
-  | 'הלכה'
-  | 'חדר'
-  | 'חלק'
-  | 'כלל'
-  | 'כרך'
-  | 'מאמר'
-  | 'מדרש'
-  | 'מזמור'
-  | 'מצוה'
-  | 'מצות לא תעשה'
-  | 'מצות עשה'
-  | 'משנה'
-  | 'נתיב'
-  | 'סדר התפילה'
-  | 'סימן'
-  | 'סעיף'
-  | 'סעיף קטן'
-  | 'ספר'
-  | 'פיוט'
-  | 'פירוש'
-  | 'פסוק'
-  | 'פסקה'
-  | 'פרק'
-  | 'פרשה'
-  | 'קובץ'
-  | 'רמז'
-  | 'שורה'
-  | 'שער'
-  | "שער הגמול - רמב''ן"
-  | 'תוספתא'
-  | 'תשובה';
-
-export interface SchemaMatchTemplate {
+interface PagesMatchTemplate {
   term_slugs: string[];
 }
 
-type SchemaNodeType = 'DictionaryNode' | 'JaggedArrayNode' | 'SchemaNode';
-
-export interface SchemaNode {
-  addressTypes?: AddressType[];
-  default?: boolean;
-  depth?: number;
-  diburHamatchilRegexes?: DiburHamatchilRegex[];
-  firstWord?: string;
-  heSectionNames?: PurpleHeSectionName[];
-  heTitle: string;
-  headwordMap?: Array<string[]>;
-  index_offsets_by_depth?: { [key: string]: number[] | number };
-  isSegmentLevelDiburHamatchil?: boolean;
-  key?: string;
-  lastWord?: string;
-  lengths?: number[];
-  lexiconName?: string;
-  match_templates?: DafYomiMatchTemplate[];
-  nodeType?: SchemaNodeType;
-  nodes?: FluffyNode[];
-  referenceableSections?: boolean[];
-  sectionNames?: TentacledSectionName[];
-  sharedTitle?: string;
-  title: string;
-  titles?: Title[];
-  toc_zoom?: number;
-}
-
-type PurpleHeSectionName =
-  | ''
-  | 'אות'
-  | 'דף'
-  | 'הלכה'
-  | 'חדר'
-  | 'חלק'
-  | 'כלל'
-  | 'מדרש'
-  | 'מצוה'
-  | 'משנה'
-  | 'סימן'
-  | 'סיפור'
-  | 'סעיף'
-  | 'סעיף קטן'
-  | 'ספר'
-  | 'פירוש'
-  | 'פסוק'
-  | 'פסקה'
-  | 'פרק'
-  | 'פרשה'
-  | 'פרשנות'
-  | 'שורה'
-  | 'שורש'
-  | 'שער'
-  | 'תורה'
-  | 'תלמוד'
-  | 'תפילה'
-  | 'תשובה';
-
-export interface FluffyNode {
-  addressTypes?: AddressType[];
-  default?: boolean;
-  depth?: number;
-  diburHamatchilRegexes?: DiburHamatchilRegex[];
-  heSectionNames?: SchemaHeSectionName[];
-  heTitle: string;
-  index_offsets_by_depth?: IndexOffsetsByDepthClass;
-  isSegmentLevelDiburHamatchil?: boolean;
-  key: string;
-  lengths?: number[];
-  match_templates?: DafYomiMatchTemplate[];
-  nodeType?: SchemaNodeType;
-  nodes?: TentacledNode[];
-  numeric_equivalent?: number;
-  referenceableSections?: boolean[];
-  sectionNames?: PurpleSectionName[];
-  sharedTitle?: string;
-  title: string;
-  titles?: Title[];
-  toc_zoom?: number;
-}
-
-export interface IndexOffsetsByDepthClass {
-  '2': number[];
-}
-
-export interface TentacledNode {
-  addressTypes?: AddressType[];
-  default?: boolean;
-  depth?: number;
-  heSectionNames?: SchemaHeSectionName[];
-  heTitle: string;
-  key: string;
-  lengths?: number[];
-  nodeType?: SchemaNodeType;
-  nodes?: StickyNode[];
-  sectionNames?: FluffySectionName[];
-  sharedTitle?: string;
-  title: string;
-  titles?: Title[];
-  toc_zoom?: number;
-}
-
-export interface StickyNode {
-  addressTypes?: AddressType[];
-  default?: boolean;
-  depth?: number;
-  heSectionNames?: SchemaHeSectionName[];
-  heTitle: string;
-  key: string;
-  lengths?: number[];
-  nodeType?: SchemaNodeType;
-  nodes?: IndigoNode[];
-  sectionNames?: DafYomiSectionName[];
-  sharedTitle?: string;
-  title: string;
-  titles?: Title[];
-}
-
-export interface IndigoNode {
-  addressTypes?: AddressType[];
-  depth?: number;
-  heSectionNames?: SchemaHeSectionName[];
-  heTitle: string;
-  key: string;
-  nodeType?: SchemaNodeType;
-  nodes?: IndigoNode[];
-  sectionNames?: DafYomiSectionName[];
-  title: string;
-  titles: Title[];
-}
-
-type FluffySectionName =
-  | 'chapter'
-  | 'Comment'
-  | 'Daf'
-  | "'Epistle'"
-  | 'Paragraph'
-  | 'Path'
-  | "'Paragraph'"
-  | 'Chapter'
-  | 'paragraph'
-  | 'Seif'
-  | 'Shorash'
-  | 'Siman';
-
-type TentacledSectionName =
+type SectionName =
+  | 'Additional Tikkun'
+  | 'Pages'
+  | 'Room'
+  | 'Siman'
+  | 'Tikkun'
+  | 'Verse'
   | 'Book'
-  | 'Chamber'
   | 'Chapter'
+  | 'Chapters'
   | 'Comment'
   | 'Daf'
-  | 'Discourse'
-  | 'Footnote'
+  | 'Drush'
   | 'Gate'
   | 'Halacha'
   | 'Halakhah'
   | 'Integer'
-  | 'Inyan'
   | 'Klal'
   | 'Letter'
   | 'Line'
-  | 'Maayan'
   | 'Manuscript'
   | 'Midrash'
   | 'Mishnah'
   | 'Mitzvah'
   | 'Ot'
   | 'Paragraph'
-  | 'Paragraphs'
   | 'Pararaph'
   | 'Parasha'
   | 'Parshanut'
   | 'Part'
   | 'Prayer'
-  | "Se'if"
   | 'Section'
+  | 'paragraph'
   | 'siman'
   | 'Segment'
   | 'Seif'
   | 'Seif Katan'
-  | 'Sheilta'
-  | 'Shoket'
   | 'Shoresh'
   | 'Siman'
   | 'Story'
@@ -562,68 +217,384 @@ type TentacledSectionName =
   | 'Torah'
   | 'Treatise'
   | 'Verse'
-  | 'Window';
+  | 'Volume';
 
-export interface RefResolverContextSwaps {
-  halakha: string[];
+interface Authors {
+  heTitle: string;
+  nodes: Contents[];
+  title: string;
+  titles: Title[];
 }
 
-type SchemaSectionName =
-  | 'Book'
-  | 'Chapter'
-  | 'Comment'
-  | 'Daf'
-  | 'Day of Week'
-  | 'DH'
-  | 'Drush'
-  | ''
-  | 'Essay'
-  | 'Footnote'
-  | 'Gate'
-  | 'Hadran'
-  | 'Halacha'
-  | 'Halakhah'
-  | 'Klal'
-  | 'Kovetz'
-  | 'Letter'
-  | 'Line'
-  | 'Liturgy'
-  | 'Midrash'
-  | 'Mishna'
-  | 'Mishnah'
-  | 'Mitzvah'
-  | 'Ot'
-  | 'Page'
-  | 'Paragraph'
-  | 'Paragraphs'
-  | 'Parasha'
-  | 'Part'
-  | 'Passuk'
-  | 'Perek'
-  | 'Piyyut'
-  | 'Psalm'
-  | 'Chapter '
-  | 'Question'
-  | 'Remez'
-  | "Sha'ar Ha'Gemul"
-  | 'Section'
-  | 'chapter'
-  | 'comment'
-  | 'paragraph'
-  | 'section'
-  | 'Segment '
-  | 'siman'
-  | 'verse'
-  | 'Volume '
-  | 'Segment'
-  | 'Seif'
-  | 'Seif Katan'
-  | 'Sheilta'
-  | 'Siman'
-  | 'Statement'
-  | 'Teaching'
-  | 'Teshuva'
-  | 'Tosefta'
-  | 'Verse'
-  | 'Verset'
-  | 'Volume';
+interface Contents {
+  heTitle: string;
+  nodes: Pages[];
+  title: string;
+  titles: Title[];
+}
+
+interface Chamber {
+  heTitle: string;
+  nodes: ChamberNode[];
+  title: string;
+  titles: Title[];
+}
+
+interface ChamberNode {
+  addressTypes: PagesAddressType[];
+  depth: number;
+  heTitle: string;
+  nodeType: PagesNodeType;
+  refs: string[];
+  sectionNames: FluffySectionName[];
+  title: string;
+  titles: Title[];
+  wholeRef: string;
+}
+
+enum FluffySectionName {
+  Room = 'Room',
+  Vav = 'Vav',
+}
+
+interface Chapter {
+  heTitle: string;
+  nodes: ChapterNode[];
+  title: string;
+  titles: Title[];
+}
+
+interface ChapterNode {
+  addressTypes?: PagesAddressType[];
+  addresses?: number[];
+  default?: boolean;
+  depth?: number;
+  heTitle: string;
+  includeSections?: string;
+  match_templates?: PagesMatchTemplate[];
+  nodeType?: PagesNodeType;
+  nodes?: Node[];
+  offset?: number;
+  refs?: string[];
+  sectionNames?: SectionName[];
+  skipped_addresses?: number[];
+  startingAddress?: string;
+  title: string;
+  titles?: Title[];
+  wholeRef?: string;
+}
+
+interface Daf {
+  heTitle: string;
+  nodes: DafNode[];
+  title: string;
+  titles: Title[];
+}
+
+interface DafNode {
+  addressTypes?: PurpleAddressType[];
+  depth?: number;
+  heTitle: string;
+  match_templates?: PagesMatchTemplate[];
+  nodeType: PagesNodeType;
+  nodes?: Node[];
+  numeric_equivalent?: number;
+  offset?: number;
+  referenceable?: Referenceable;
+  refs?: string[];
+  sectionNames?: SectionName[];
+  startingAddress?: string;
+  title: string;
+  titles: Title[];
+  wholeRef?: string;
+}
+
+enum PurpleAddressType {
+  Folio = 'Folio',
+  Integer = 'Integer',
+}
+
+interface PurpleNode {
+  addressTypes?: PagesAddressType[];
+  addresses?: number[];
+  depth?: number;
+  heTitle: string;
+  match_templates: PagesMatchTemplate[];
+  nodeType: PagesNodeType;
+  nodes?: Node[];
+  offset?: number;
+  referenceable?: Referenceable;
+  refs?: string[];
+  sectionNames?: SectionName[];
+  startingAddress?: string;
+  title: string;
+  titles: Title[];
+  wholeRef?: string;
+}
+
+enum Referenceable {
+  Optional = 'optional',
+}
+
+interface Essay {
+  heTitle: string;
+  nodes: EssayNode[];
+  title: string;
+  titles: Title[];
+}
+
+interface EssayNode {
+  heTitle: string;
+  match_templates: PagesMatchTemplate[];
+  nodeType: PagesNodeType;
+  nodes: FluffyNode[];
+  referenceable?: Referenceable;
+  title: string;
+  titles: Title[];
+}
+
+interface FluffyNode {
+  addressTypes?: PagesAddressType[];
+  depth?: number;
+  heTitle: string;
+  match_templates: PagesMatchTemplate[];
+  nodeType: PagesNodeType;
+  nodes?: Node[];
+  numeric_equivalent?: number;
+  offset?: number;
+  referenceable?: Referenceable;
+  refs?: string[];
+  sectionNames?: SectionName[];
+  startingAddress?: number;
+  title: string;
+  titles: Title[];
+  wholeRef?: string;
+}
+
+interface Parasha {
+  heTitle: string;
+  nodes: ParashaNode[];
+  title: string;
+  titles: Title[];
+}
+
+interface ParashaNode {
+  addressTypes?: PagesAddressType[];
+  depth?: number;
+  heTitle: string;
+  includeSections?: boolean;
+  isMapReferenceable?: boolean;
+  match_templates?: PurpleMatchTemplate[];
+  nodeType?: PagesNodeType;
+  nodes?: Node[];
+  offset?: number;
+  refs?: string[];
+  sectionNames?: SectionName[];
+  sharedTitle?: string;
+  startingAddress?: string;
+  title: string;
+  titles: Title[];
+  wholeRef?: string;
+}
+
+interface Topic {
+  heTitle: string;
+  nodes: TopicNode[];
+  title: string;
+  titles: Title[];
+}
+
+interface TopicNode {
+  addressTypes?: PagesAddressType[];
+  depth?: number;
+  heTitle: string;
+  includeSections?: boolean | string;
+  nodeType?: PagesNodeType;
+  nodes?: Node[];
+  offset?: number;
+  refs?: string[];
+  sectionNames?: SectionName[];
+  sharedTitle?: SharedTitle;
+  startingAddress?: string;
+  title: string;
+  titles: Title[];
+  wholeRef?: string;
+}
+
+enum SharedTitle {
+  Introduction = 'Introduction',
+}
+
+interface Author {
+  en: string;
+  he: string;
+  slug: string;
+}
+
+enum BaseTextMapping {
+  ManyToOne = 'many_to_one',
+  ManyToOneDefaultOnly = 'many_to_one_default_only',
+  OneToOne = 'one_to_one',
+}
+
+interface CollectiveTitle {
+  en: string;
+  he: string;
+}
+
+enum Corpora {
+  Bavli = 'Bavli',
+  MidrashRabbah = 'Midrash Rabbah',
+  Mishnah = 'Mishnah',
+  Tanakh = 'Tanakh',
+}
+
+enum Dependence {
+  Commentary = 'Commentary',
+  DependenceCommentary = 'commentary',
+  DependenceTargum = 'targum',
+  Guides = 'Guides',
+  Midrash = 'Midrash',
+  Targum = 'Targum',
+}
+
+enum Era {
+  A = 'A',
+  Ah = 'AH',
+  Co = 'CO',
+  Gn = 'GN',
+  Ri = 'RI',
+  T = 'T',
+}
+
+enum ExcludeStruct {
+  Schema = 'schema',
+}
+
+interface SchemaClass {
+  addressTypes?: PagesAddressType[];
+  checkFirst?: CollectiveTitle;
+  depth?: number;
+  diburHamatchilRegexes?: DiburHamatchilRegex[];
+  heSectionNames?: SectionName[];
+  heTitle: string;
+  isSegmentLevelDiburHamatchil?: boolean;
+  key: string;
+  lengths?: number[];
+  match_templates?: PagesMatchTemplate[];
+  nodeType?: SchemaNodeType;
+  nodes?: Node[];
+  referenceableSections?: boolean[];
+  sectionNames?: SectionName[];
+  title: string;
+  titles: Title[];
+  toc_zoom?: number;
+}
+
+enum DiburHamatchilRegex {
+  BB = '^<b>(.+?)</b>',
+  DiburHamatchilRegex = '\\.(.+?)$',
+  Empty = '^(.+?)[\\-–]',
+  מתניגמS = "^(?:(?:מתני'|גמ')\\s?)?(.+)$",
+}
+
+enum SchemaNodeType {
+  DictionaryNode = 'DictionaryNode',
+  JaggedArrayNode = 'JaggedArrayNode',
+  SchemaNode = 'SchemaNode',
+}
+
+interface SchemaNode {
+  addressTypes?: PagesAddressType[];
+  default?: boolean;
+  depth?: number;
+  diburHamatchilRegexes?: DiburHamatchilRegex[];
+  firstWord?: string;
+  heSectionNames?: SectionName[];
+  heTitle: string;
+  headwordMap?: Array<string[]>;
+  index_offsets_by_depth?: { [key: string]: number[] | number };
+  isSegmentLevelDiburHamatchil?: boolean;
+  key?: string;
+  lastWord?: string;
+  lengths?: number[];
+  lexiconName?: string;
+  match_templates?: PurpleMatchTemplate[];
+  nodeType?: SchemaNodeType;
+  nodes?: Node[];
+  referenceableSections?: boolean[];
+  sectionNames?: SectionName[];
+  sharedTitle?: string;
+  title: string;
+  titles?: Title[];
+  toc_zoom?: number;
+}
+
+interface TentacledNode {
+  addressTypes?: PagesAddressType[];
+  default?: boolean;
+  depth?: number;
+  diburHamatchilRegexes?: DiburHamatchilRegex[];
+  heSectionNames?: SectionName[];
+  heTitle: string;
+  index_offsets_by_depth?: { [key: string]: number[] | number };
+  isSegmentLevelDiburHamatchil?: boolean;
+  key: string;
+  lengths?: number[];
+  match_templates?: PurpleMatchTemplate[];
+  nodeType?: SchemaNodeType;
+  nodes?: Node[];
+  numeric_equivalent?: number;
+  referenceableSections?: boolean[];
+  sectionNames?: SectionName[];
+  sharedTitle?: string;
+  title: string;
+  titles?: Title[];
+  toc_zoom?: number;
+}
+
+interface StickyNode {
+  addressTypes?: PagesAddressType[];
+  default?: boolean;
+  depth?: number;
+  heSectionNames?: SectionName[];
+  heTitle: string;
+  key: string;
+  lengths?: number[];
+  nodeType?: SchemaNodeType;
+  nodes?: Node[];
+  sectionNames?: SectionName[];
+  sharedTitle?: string;
+  title: string;
+  titles?: Title[];
+  toc_zoom?: number;
+}
+
+interface IndigoNode {
+  addressTypes?: PagesAddressType[];
+  default?: boolean;
+  depth?: number;
+  heSectionNames?: SectionName[];
+  heTitle: string;
+  key: string;
+  lengths?: number[];
+  nodeType?: SchemaNodeType;
+  nodes?: Node[];
+  sectionNames?: SectionName[];
+  sharedTitle?: string;
+  title: string;
+  titles?: Title[];
+}
+
+interface IndecentNode {
+  addressTypes?: PagesAddressType[];
+  depth?: number;
+  heSectionNames?: SectionName[];
+  heTitle: string;
+  key: string;
+  nodeType?: SchemaNodeType;
+  nodes?: Node[];
+  sectionNames?: SectionName[];
+  title: string;
+  titles: Title[];
+}
