@@ -78,7 +78,9 @@ function organizeTitleRefs() {
 
   for (const file of merged) {
     if (++index % 1000 === 0) console.log(`Processed ${index} texts`);
-    const { title, text } = readJson<any>(file)!;
+    const json = readJson<any>(file);
+    if (!json) continue;
+    const { title, text } = json;
 
     const schema = metaByTitle[title.toLowerCase()]?.schema;
     if (!schema) {
@@ -170,7 +172,7 @@ function checkTitleLinks() {
     if (skips.has(title)) continue;
 
     const refsByTitleLocation = `${refsByTitleDir}/${title}.json`;
-    const refsFile = readJson<RefFile>(refsByTitleLocation)!;
+    const refsFile = readJson<RefFile>(refsByTitleLocation);
     if (!refsFile) {
       noRefs.push(title);
       // console.log(`No link refs found for ${title}`);
