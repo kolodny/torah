@@ -27,6 +27,11 @@ export const schemasDir = `${organizedDir}/schemas`;
 export const contentDir = `${organizedDir}/content`;
 export const badRefsLocation = `${organizedDir}/bad-refs.json`;
 
+mkdirSync(refsByTitleDir, { recursive: true });
+mkdirSync(linksByTitleDir, { recursive: true });
+mkdirSync(schemasDir, { recursive: true });
+mkdirSync(contentDir, { recursive: true });
+
 // Build schema cache
 console.time('\nbuilding schema cache');
 export const metaByTitle: Record<string, any> = {};
@@ -42,11 +47,6 @@ console.timeEnd('\nbuilding schema cache');
 const base = (file: string) => file.split('/').pop()?.split('.')[0];
 
 export const organize = async () => {
-  mkdirSync(refsByTitleDir, { recursive: true });
-  mkdirSync(linksByTitleDir, { recursive: true });
-  mkdirSync(schemasDir, { recursive: true });
-  mkdirSync(contentDir, { recursive: true });
-
   // Build up index of all refs by title
   console.time('\norganizing refs by title');
   organizeTitleRefs();

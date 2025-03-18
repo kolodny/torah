@@ -11,7 +11,6 @@ import { parse } from '@fast-csv/parse';
 
 const root = resolve(`${import.meta.dirname}/../`);
 const tocPath = `${root}/Sefaria-Export/table_of_contents.json`;
-const metaPath = `${root}/Sefaria-Export/schemas/*.json`;
 
 await $`mkdir ${root}/db`.catch(() => {});
 await $`rm -rf ${root}/drizzle`.catch(() => {});
@@ -22,7 +21,7 @@ import { sync } from 'glob';
 import { createReadStream, readFileSync, statSync } from 'node:fs';
 import { inArray } from 'drizzle-orm';
 import type { Content, Toc } from '../types/toc.ts';
-import type { Meta } from '../types/schema.ts';
+import type { Meta } from '../types/meta.ts';
 
 import { skips } from './skips.ts';
 import {
@@ -89,13 +88,6 @@ function makeInsert<Insert>(cb: (values: Insert[]) => void) {
 
 async function buildToc() {
   const toc = readJson<Toc[]>(tocPath)!;
-  const titleToMetaLocation: Record<string, string> = {};
-  for (const file of sync(metaPath)) {
-    const contents = readFileSync(file, 'utf8');
-    if (!contents) continue;
-    const schema = JSON.parse(contents) as Meta;
-    titleToMetaLocation[schema.title] = file;
-  }
 
   const bar = barStack.create(toc.length, 0);
   bar.update({ message: 'Building toc' });
