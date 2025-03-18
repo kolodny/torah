@@ -255,6 +255,7 @@ async function buildLinks() {
   });
   const subBar = barStack.create(100, 0);
   let processed = 0;
+  let missingTitle = 0;
 
   for (const [index, file] of Object.entries(linkFiles)) {
     const totalLinks = readFileSync(file, 'utf8').split('\n').length;
@@ -280,7 +281,7 @@ async function buildLinks() {
         }
       }
 
-      log(`No title found for ${citation}\n`);
+      missingTitle++;
     };
 
     const stream = createReadStream(file).pipe(parse({ headers: true }));
@@ -310,4 +311,5 @@ async function buildLinks() {
   }
   flush();
   bar.stop();
+  log(`Titles not found for ${missingTitle} links\n`);
 }
